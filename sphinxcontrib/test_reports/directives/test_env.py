@@ -185,10 +185,11 @@ class EnvReportDirective(Directive):
         main_section += section
 
         # data option check
-        if len(data_option) != 0:
-            for opt in data_option:
-                logger.warning("option \'{0}\' is not present in JSON file".format(opt))
-        del data_option
+        if data_option is not None:
+            if len(data_option) != 0:
+                for opt in data_option:
+                    logger.warning("option \'{0}\' is not present in JSON file".format(opt))
+            del data_option
 
         return main_section
 
