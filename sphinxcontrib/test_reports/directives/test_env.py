@@ -62,7 +62,6 @@ class EnvReportDirective(Directive):
 
     def run(self):
         env = self.state.document.settings.env
-
         json_path = self.arguments[0]
         root_path = env.app.config.test_reports_rootdir
         if not os.path.isabs(json_path):
@@ -72,11 +71,12 @@ class EnvReportDirective(Directive):
             raise JsonFileNotFound("The given file does not exist: {0}".format(json_path))
 
         fp_json = open(json_path, 'r')
-
         try:
             results = json.load(fp_json)
-        except ValueError:
-            raise InvalidJsonFile("The given file {0} is not a valid JSON".format(json_path.split('/')[-1]))
+        except Exception:
+            logger.warning("The given file {0} is not a valid JSON".format(json_path))
+            logger.error("Build Failed")
+            exit(0)
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:
@@ -175,13 +175,16 @@ class EnvReportDirective(Directive):
         all_data = results[enviro]
 
         data_option = copy.deepcopy(self.data_option_list)
-        for data in all_data:
-            if data_option is not None:
-                if data in data_option:
-                    data_option.remove(data)
+        if data_option is not None:
+            for data in self.data_option_list:
+                try:
                     tbody += self._create_rows((data, all_data[data]))
-            else:
-                tbody += self._create_rows((data, all_data[data]))
+                    data_option.remove(data)
+                except KeyError:
+                    pass
+        else:
+            for data_json in all_data:
+                tbody += self._create_rows((data_json, all_data[data_json]))
 
         main_section += section
 
@@ -207,10 +210,6 @@ class EnvReportDirective(Directive):
             else:
                 entry += nodes.paragraph(text=cell)
         return row
-
-
-class InvalidJsonFile(BaseException):
-    pass
 
 
 class JsonFileNotFound(BaseException):
