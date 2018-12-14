@@ -75,8 +75,7 @@ class EnvReportDirective(Directive):
             results = json.load(fp_json)
         except Exception:
             logger.warning("The given file {0} is not a valid JSON".format(json_path))
-            logger.error("Build Failed")
-            exit(0)
+            return []
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:
