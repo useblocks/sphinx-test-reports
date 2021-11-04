@@ -4,6 +4,8 @@ Changelog
 -----
 :Released: under development
 
+* Improvement: Added support for parallel modes
+
 
 0.3.4
 -----
