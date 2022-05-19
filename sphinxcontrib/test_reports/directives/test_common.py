@@ -8,9 +8,7 @@ from sphinx.util import logging
 from sphinxcontrib.needs.api import make_hashed_id
 
 from sphinxcontrib.test_reports.exceptions import (
-    SphinxError,
-    TestReportFileNotSetException,
-)
+    SphinxError, TestReportFileNotSetException)
 from sphinxcontrib.test_reports.junitparser import JUnitParser
 
 
@@ -20,7 +18,7 @@ class TestCommonDirective(Directive):
     """
 
     def __init__(self, *args, **kwargs):
-        super(TestCommonDirective, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.env = self.state.document.settings.env
         self.app = self.env.app
         if not hasattr(self.app, "testreport_data"):

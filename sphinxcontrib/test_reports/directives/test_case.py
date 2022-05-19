@@ -2,7 +2,8 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinxcontrib.needs.api import add_need
 
-from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import \
+    TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
 
 
@@ -66,7 +67,7 @@ class TestCaseDirective(TestCommonDirective):
 
         if suite is None:
             raise TestReportInvalidOption(
-                "Suite {} not found in test file {}".format(suite_name, self.test_file)
+                f"Suite {suite_name} not found in test file {self.test_file}"
             )
 
         case = None

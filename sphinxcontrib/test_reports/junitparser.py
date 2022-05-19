@@ -17,7 +17,7 @@ class JUnitParser:
 
         if not os.path.exists(self.junit_xml_path):
             raise JUnitFileMissing(
-                "The given file does not exist: {0}".format(self.junit_xml_path)
+                f"The given file does not exist: {self.junit_xml_path}"
             )
         self.junit_xml_doc = etree.parse(self.junit_xml_path)
 
@@ -45,7 +45,6 @@ class JUnitParser:
         def parse_testcase(xml_object):
 
             testcase = xml_object
-
 
             tc_dict = {
                 "classname": testcase.attrib.get("classname", "unknown"),
@@ -109,7 +108,7 @@ class JUnitParser:
                 "passed": passed,
                 "time": float(testsuite.attrib.get("time", -1)),
                 "testcases": [],
-                "testsuites": []
+                "testsuites": [],
             }
 
             # add nested testsuite objects to

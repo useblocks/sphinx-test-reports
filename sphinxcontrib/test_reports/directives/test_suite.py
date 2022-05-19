@@ -5,7 +5,8 @@ from docutils.parsers.rst import directives
 from sphinxcontrib.needs.api import add_need
 
 import sphinxcontrib.test_reports.directives.test_case
-from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import \
+    TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
 
 
@@ -61,7 +62,7 @@ class TestSuiteDirective(TestCommonDirective):
 
         if suite is None:
             raise TestReportInvalidOption(
-                "Suite {} not found in test file {}".format(suite_name, self.test_file)
+                f"Suite {suite_name} not found in test file {self.test_file}"
             )
 
         cases = suite["tests"]
@@ -104,10 +105,10 @@ class TestSuiteDirective(TestCommonDirective):
 
                 suite_id = self.test_id
                 suite_id += (
-                        "_"
-                        + hashlib.sha1(suite["name"].encode("UTF-8"))
-                        .hexdigest()
-                        .upper()[:3]
+                    "_"
+                    + hashlib.sha1(suite["name"].encode("UTF-8"))
+                    .hexdigest()
+                    .upper()[:3]
                 )
 
                 options = self.options
@@ -149,12 +150,12 @@ class TestSuiteDirective(TestCommonDirective):
             for case in suite["testcases"]:
                 case_id = self.test_id
                 case_id += (
-                        "_"
-                        + hashlib.sha1(
-                    case["classname"].encode("UTF-8") + case["name"].encode("UTF-8")
-                )
-                        .hexdigest()
-                        .upper()[:5]
+                    "_"
+                    + hashlib.sha1(
+                        case["classname"].encode("UTF-8") + case["name"].encode("UTF-8")
+                    )
+                    .hexdigest()
+                    .upper()[:5]
                 )
 
                 options = self.options

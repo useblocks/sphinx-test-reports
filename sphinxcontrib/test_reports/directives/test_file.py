@@ -5,8 +5,10 @@ from docutils.parsers.rst import directives
 from sphinxcontrib.needs.api import add_need
 
 import sphinxcontrib.test_reports.directives.test_suite
-from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
-from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfiguration
+from sphinxcontrib.test_reports.directives.test_common import \
+    TestCommonDirective
+from sphinxcontrib.test_reports.exceptions import \
+    TestReportIncompleteConfiguration
 
 
 class TestFile(nodes.General, nodes.Element):
@@ -46,7 +48,7 @@ class TestFileDirective(TestCommonDirective):
             main_section = []
             content = nodes.error()
             para = nodes.paragraph()
-            text_string = "Test file not found: {}".format(self.test_file)
+            text_string = f"Test file not found: {self.test_file}"
             text = nodes.Text(text_string, text_string)
             para += text
             content.append(para)
@@ -54,12 +56,12 @@ class TestFileDirective(TestCommonDirective):
             return main_section
 
         suites = len(self.results)
-        cases = sum([int(x["tests"]) for x in self.results])
+        cases = sum(int(x["tests"]) for x in self.results)
 
-        passed = sum([x["passed"] for x in self.results])
-        skipped = sum([x["skips"] for x in self.results])
-        errors = sum([x["errors"] for x in self.results])
-        failed = sum([x["failures"] for x in self.results])
+        passed = sum(x["passed"] for x in self.results)
+        skipped = sum(x["skips"] for x in self.results)
+        errors = sum(x["errors"] for x in self.results)
+        failed = sum(x["failures"] for x in self.results)
 
         main_section = []
         docname = self.state.document.settings.env.docname

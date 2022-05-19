@@ -102,7 +102,7 @@ def install_styles_static_files(app, env):
                 os.path.dirname(__file__), "css", "blank.css"
             )
             print(
-                "{0} not found. Copying sphinx-internal blank.css".format(
+                "{} not found. Copying sphinx-internal blank.css".format(
                     source_file_path
                 )
             )

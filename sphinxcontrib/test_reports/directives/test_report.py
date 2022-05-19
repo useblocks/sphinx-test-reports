@@ -3,7 +3,8 @@ import os
 from docutils import nodes
 from docutils.parsers.rst import directives
 
-from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import \
+    TestCommonDirective
 
 
 class TestReport(nodes.General, nodes.Element):
@@ -42,7 +43,7 @@ class TestReportDirective(TestCommonDirective):
             template = "".join(template_file.readlines())
 
         if self.test_links is not None and len(self.test_links) > 0:
-            links_string = "\n   :links: {}".format(self.test_links)
+            links_string = f"\n   :links: {self.test_links}"
         else:
             links_string = ""
 
