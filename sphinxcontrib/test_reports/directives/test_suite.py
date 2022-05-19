@@ -5,8 +5,7 @@ from docutils.parsers.rst import directives
 from sphinxcontrib.needs.api import add_need
 
 import sphinxcontrib.test_reports.directives.test_case
-from sphinxcontrib.test_reports.directives.test_common import \
-    TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
 
 
@@ -106,7 +105,7 @@ class TestSuiteDirective(TestCommonDirective):
                 suite_id = self.test_id
                 suite_id += (
                     "_"
-                    + hashlib.sha1(suite["name"].encode("UTF-8"))
+                    + hashlib.sha1(suite["name"].encode("UTF-8"))  # noqa: W503
                     .hexdigest()
                     .upper()[:3]
                 )
@@ -151,7 +150,7 @@ class TestSuiteDirective(TestCommonDirective):
                 case_id = self.test_id
                 case_id += (
                     "_"
-                    + hashlib.sha1(
+                    + hashlib.sha1(  # noqa: W503
                         case["classname"].encode("UTF-8") + case["name"].encode("UTF-8")
                     )
                     .hexdigest()

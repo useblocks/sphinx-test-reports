@@ -74,14 +74,15 @@ class EnvReportDirective(Directive):
         if not os.path.exists(json_path):
             raise JsonFileNotFound(f"The given file does not exist: {json_path}")
 
-        fp_json = open(json_path)
-
-        try:
-            results = json.load(fp_json)
-        except ValueError:
-            raise InvalidJsonFile(
-                "The given file {} is not a valid JSON".format(json_path.split("/")[-1])
-            )
+        with open(json_path) as fp_json:
+            try:
+                results = json.load(fp_json)
+            except ValueError:
+                raise InvalidJsonFile(
+                    "The given file {} is not a valid JSON".format(
+                        json_path.split("/")[-1]
+                    )
+                )
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:

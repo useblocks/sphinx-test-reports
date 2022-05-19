@@ -91,12 +91,13 @@ class JUnitParser:
             tests = int(testsuite.attrib.get("tests", -1))
             errors = int(testsuite.attrib.get("errors", -1))
             failures = int(testsuite.attrib.get("failures", -1))
+
+            # fmt: off
             skips = int(
-                testsuite.attrib.get("skips")
-                or testsuite.attrib.get("skip")
-                or testsuite.attrib.get("skipped")
-                or -1
+                testsuite.attrib.get("skips") or testsuite.attrib.get("skip") or testsuite.attrib.get("skipped") or -1
             )
+            # fmt: on
+
             passed = int(tests - sum(x for x in [errors, failures, skips] if x > 0))
 
             ts_dict = {
@@ -113,11 +114,9 @@ class JUnitParser:
 
             # add nested testsuite objects to
             if hasattr(testsuite, "testsuite"):
-                i = 0
 
                 for ts in testsuite.testsuite:
                     # dict from inner parse
-                    i += 1
                     inner_testsuite = parse_testsuite(ts)
                     ts_dict["testsuites"].append(inner_testsuite)
 

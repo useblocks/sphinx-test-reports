@@ -2,8 +2,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinxcontrib.needs.api import add_need
 
-from sphinxcontrib.test_reports.directives.test_common import \
-    TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
 
 
@@ -40,7 +39,7 @@ class TestCaseDirective(TestCommonDirective):
         self.prepare_basic_options()
         self.load_test_file()
 
-        if nested and suite_count != -1:
+        if nested and suite_count >= 0:
             # access n-th nested suite here
             self.results = self.results[0]["testsuites"][suite_count]
 
@@ -73,20 +72,29 @@ class TestCaseDirective(TestCommonDirective):
         case = None
 
         for case_obj in suite["testcases"]:
-            if case_obj["name"] == case_full_name and class_name is None:
-                case = case_obj
-                break
-            elif case_obj["classname"] == class_name and case_full_name is None:
-                case = case_obj
-                break
-            elif (
-                case_obj["name"] == case_full_name
-                and case_obj["classname"] == class_name
+
+            if (
+                case_obj["name"] == case_full_name  # noqa: SIM114
+                and class_name is None  # noqa: W503
             ):
                 case = case_obj
                 break
 
-            elif nested and case_count > -1:
+            elif (
+                case_obj["classname"] == class_name  # noqa: SIM114
+                and case_full_name is None  # noqa: W503
+            ):
+                case = case_obj
+                break
+
+            elif (
+                case_obj["name"] == case_full_name
+                and case_obj["classname"] == class_name  # noqa: W503
+            ):
+                case = case_obj
+                break
+
+            elif nested and case_count >= 0:
                 # access correct case in list
                 case = suite["testcases"][case_count]
                 break
