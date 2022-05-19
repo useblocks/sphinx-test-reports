@@ -34,12 +34,6 @@ class JUnitParser:
 
         return self.valid_xml
 
-    # TODO create own index.rst
-    # TODO rewrite junitparser with recursion, depending on xml tree
-    # TODO use old testsuite list, rename testsuites, change logic when accessing
-
-    # conditional breakpoints
-
     def parse(self):
         """
         Creates a common python list of object, no matter what information are
