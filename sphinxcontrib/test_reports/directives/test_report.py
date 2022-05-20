@@ -1,10 +1,12 @@
+# fmt: off
 import os
 
 from docutils import nodes
 from docutils.parsers.rst import directives
 
-from sphinxcontrib.test_reports.directives.test_common import \
-    TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
+
+# fmt: on
 
 
 class TestReport(nodes.General, nodes.Element):

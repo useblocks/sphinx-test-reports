@@ -21,7 +21,7 @@ repos:
     rev: 5.10.1
     hooks:
       - id: isort
-        args: [-l 120]
+        args: [-l 120,]
   - repo: https://github.com/asottile/pyupgrade
     rev: v2.29.1
     hooks:
