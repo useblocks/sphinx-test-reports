@@ -43,11 +43,6 @@ class TestReportDirective(TestCommonDirective):
         # if user provides a custom template, use it
         tr_template = self.app.config.tr_report_template
 
-        # TODO check os.path is absolute
-        # if abs , test and use directly
-        # if not, create abs path os path join conf.py + user value
-        # check if abs path exists os.pathexists or isfile
-
         template_path = ""
 
         if os.path.isabs(tr_template):
