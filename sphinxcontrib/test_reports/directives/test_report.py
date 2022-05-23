@@ -49,7 +49,6 @@ class TestReportDirective(TestCommonDirective):
             template_path = tr_template
 
         else:
-
             template_path = os.path.join(self.app.confdir, os.path.relpath(tr_template))
 
         if not os.path.isfile(template_path):
