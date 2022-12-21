@@ -37,7 +37,6 @@ def test_test_file_needs_extra_options_no_warning(test_app):
     # Check no warnings
     assert "WARNING" not in out.stdout.decode("utf-8")
 
-
     html = Path(app.outdir, "index.html").read_text()
     assert html
     assert "TEST_CTEST_1" in html  # suite id
