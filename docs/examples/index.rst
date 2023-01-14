@@ -1,7 +1,5 @@
 Examples
 ========
-.. contents:: Contents
-   :local:
 
 Importing
 ---------

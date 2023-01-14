@@ -61,7 +61,7 @@ if os.name == "nt":
     plantuml = plantuml.replace("/", "\\")
     plantuml = plantuml.replace("\\", "\\\\")
 
-plantuml_output_format = "png"
+plantuml_output_format = "svg"
 
 
 # Add any paths that contain templates here, relative to this directory.
@@ -122,7 +122,7 @@ html_theme_options["features"].extend(["navigation.tabs", "navigation.tabs.stick
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static", "ub_theme/css", "ub_theme/js"]
 html_css_files = ["ub-theme.css"]
-html_js_files = ["jquery.js"]
+html_js_files = ["custom.js"]
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
