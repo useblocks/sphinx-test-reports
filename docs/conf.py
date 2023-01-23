@@ -1,4 +1,6 @@
-#
+"""
+   isort:skip_file
+"""
 # Configuration file for the Sphinx documentation builder.
 #
 # This file does only contain a selection of the most common options. For a
@@ -7,24 +9,25 @@
 
 # -- Path setup --------------------------------------------------------------
 
+import datetime
+import os
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 # import os
 import sys
-import datetime
-import os
 
 sys.path.append(os.path.abspath("."))
 
-from ub_theme.conf import ub_html_theme_options     # noqa: E402
+from ub_theme.conf import ub_html_theme_options  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 
 project = "sphinx-test-reports"
 now = datetime.datetime.now()
-copyright = "team useblocks, 2017-{year}".format(year=now.year)
+copyright = f"team useblocks, 2017-{now.year}"
 author = "team useblocks"
 
 # The short X.Y version
