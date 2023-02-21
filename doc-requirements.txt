@@ -1,6 +1,6 @@
-sphinx>=4.0
+sphinx
 sphinx-needs>=1.1.1
 sphinx-test-reports>=0.3.3
 sphinxcontrib-plantuml
 sphinx-design
-sphinx-immaterial
+sphinx-immaterial>=0.11.0
