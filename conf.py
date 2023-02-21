@@ -2,17 +2,14 @@ ub_html_theme_options = {
     "icon": {
         "repo": "fontawesome/brands/github",
     },
-    "font": {
-        "code": "JetBrains Mono",
-        "text": "Recursive"
-    },
+    "font": {"code": "JetBrains Mono", "text": "Recursive"},
     "globaltoc_collapse": True,
     "features": [
         "navigation.top",
         "search.share",
         "navigation.tracking",
         "toc.follow",
-        "content.tabs.link"
+        "content.tabs.link",
     ],
     "palette": [
         {
@@ -37,5 +34,5 @@ ub_html_theme_options = {
         },
     ],
     "toc_title_is_page_title": True,
-    "toc_title": "Contents",
+    "toc_title": "Table of Contents",
 }
