@@ -34,5 +34,5 @@ ub_html_theme_options = {
         },
     ],
     "toc_title_is_page_title": True,
-    "toc_title": "Contents",
+    "toc_title": "Table of Contents",
 }
