@@ -10,14 +10,23 @@ This repository contains the theme for all Useblock documentation sites.
 ## Installation
 To install the files from this repository, you must have [Git](https://git-scm.com) installed.
 
-* Change directory to your preferred docs working directory
+* Change directory to your root directory if you are in a subdirectory.
+* Add the files from this repository (_ub_theme_) as a dependency to your docs project:
   ```bash
-  cd docs
+  git subtree add --prefix docs/ub_theme/ https://github.com/useblocks/ub_theme.git main --squash
   ```
-* Download the files from the repository:
-  ```bash
-  git clone https://github.com/useblocks/useblocks-theme.git 
-  ```
+
+**Updating the _ub_theme_ folder in a documentation project**
+
+You can update the _ub_theme_ repository by running the following command:
+```bash
+git subtree pull --prefix docs/ub_theme/ https://github.com/useblocks/ub_theme.git main --squash
+```
+
+- `git subtree pull`: The `pull` option under `git subtree` allows you to sync changes between the subproject repository and the copy of it in the other documentation project.
+- `--prefix [folder_path]`: The `--prefix` option allows you to set the value for where you want to store the subproject repository files. E.g. **docs/ub_theme**.
+- `https://github.com/useblocks/ub_theme.git main` is the remote repository link and branch you want to copy from.
+- `--squash` is the flag that combines all the commits from the subproject repository into one commit for the parent project repository.
 
 ## Configuration
 
@@ -30,14 +39,14 @@ You must configure the following in the **conf.py** file of the Sphinx documenta
       import sys
       sys.path.append(os.path.abspath(".")) # Example if `ub_theme` folder is in the same folder as the `conf.py` file
         ```
-* Add the `html_theme_options` to your **conf.py**:
+* Add the `ub_html_theme_options` to your **conf.py**:
     * Import the theme options for Useblocks.
       ```python
-      from ub_theme.conf import html_theme_options
+      from ub_theme.conf import ub_html_theme_options
         ```
-    * Set it as the value for the `html_theme_options` variable.
+    * Set it as the value for the `ub_html_theme_options` variable.
       ```python
-      html_theme_options = html_theme_options
+      html_theme_options = ub_html_theme_options
         ```
 * Add the custom template changes folder to the `templates_path` variable.
   ```python
@@ -64,12 +73,12 @@ You must configure the following in the **conf.py** file of the Sphinx documenta
   
 The final configuration should look like below:
 ```python
-import sys
 import os
+import sys
 
 sys.path.append(os.path.abspath("."))
 
-from ub_theme.conf import html_theme_options
+from ub_theme.conf import ub_html_theme_options
 
 extensions = [
     "sphinx_immaterial",
@@ -78,11 +87,11 @@ extensions = [
 templates_path = ["_templates", "ub_theme/templates"]
 
 html_theme = "sphinx_immaterial"
-html_theme_options = html_theme_options
+html_theme_options = ub_html_theme_options
 
 # You can add other Sphinx-Immaterial theme options like below
 other_options = {
-    "repo_url": "https://github.com/useblocks/useblocks-theme",
+    "repo_url": "https://github.com/useblocks/ub_theme",
     "repo_name": "useblocks-theme",
     "repo_type": "github",
 }
@@ -96,5 +105,7 @@ html_js_files = ["ub-theme.js"]
 
 ## Changelog
 
+* 13.02.2023 - Updated README.md and text font to Recursive. Added SUBTREE.md file.
+* 23.01.2023 - Updated CSS for theme, changelog and conf.py
 * 13.01.2023 - Updated CSS stylesheets and docs on how to apply the theme customization.
 * 28.12.2022 - Setup and added the initial Useblocks theme codes. 

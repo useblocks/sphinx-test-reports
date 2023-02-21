@@ -20,6 +20,11 @@
     :target: https://pypi.python.org/pypi/sphinx-test-reports
     :alt: PyPI Package latest release
 
+.. image:: _static/sphinx-test-reports-logo.png
+   :alt: Sphinx-Test-Reports Logo
+   :align: center
+   :class: sphinx-test-logo
+
 Sphinx-Test-Reports
 ===================
 
@@ -155,7 +160,7 @@ In the last years, we have created additional information and extensions, which 
     .. grid-item-card::
         :columns: 12 6 6 6
         :link: https://sphinx-test-reports.readthedocs.io/en/latest/
-        :img-top: /_static/sphinx-test-reports-logo.png
+        :img-top: /_static/sphinx-test-reports-card.png
         :class-card: border
 
         Sphinx-Test-Reports
@@ -173,9 +178,6 @@ In the last years, we have created additional information and extensions, which 
 
             :octicon:`book;1em;sd-text-primary` Technical Docs
 
-
-Other Sphinx extensions
-~~~~~~~~~~~~~~~~~~~~~~~
 During the use of Sphinx-Needs in popular companies’ internal projects,
 we have created other Sphinx extensions to support the work of teams in the automotive industry:
 
@@ -221,8 +223,6 @@ we have created other Sphinx extensions to support the work of teams in the auto
             :expand:
 
             :octicon:`book;1em;sd-text-primary` Technical Docs
-
-
 
 Motivation
 ----------
