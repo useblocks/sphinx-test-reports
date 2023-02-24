@@ -1,5 +1,6 @@
 # fmt: off
 import os
+import pathlib
 
 from docutils import nodes
 from docutils.parsers.rst import directives
@@ -41,24 +42,21 @@ class TestReportDirective(TestCommonDirective):
         self.load_test_file()
 
         # if user provides a custom template, use it
-        tr_template = self.app.config.tr_report_template
+        tr_template = pathlib.Path(self.app.config.tr_report_template)
 
-        template_path = ""
-
-        if os.path.isabs(tr_template):
+        if tr_template.is_absolute():
             template_path = tr_template
-
         else:
-            template_path = os.path.join(self.app.confdir, os.path.relpath(tr_template))
+            template_path = pathlib.Path(self.app.confdir) / tr_template
 
-        if not os.path.isfile(template_path):
+        if not template_path.is_file():
             raise InvalidConfigurationError(
                 "could not find a template file with name {} in conf.py directory".format(
                     template_path
                 )
             )
 
-        with open(template_path) as template_file:
+        with template_path.open() as template_file:
             template = "".join(template_file.readlines())
 
         if self.test_links is not None and len(self.test_links) > 0:
@@ -78,7 +76,7 @@ class TestReportDirective(TestCommonDirective):
             "links_string": links_string,
             "title": self.test_name,
             "content": self.content,
-            "template_path": template_path,
+            "template_path": str(template_path),
         }
 
         template_ready = template.format(**template_data)
