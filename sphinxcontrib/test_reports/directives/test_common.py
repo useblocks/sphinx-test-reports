@@ -3,6 +3,7 @@ A Common directive, from which all other test directives inherit the shared func
 """
 # fmt: off
 import os
+import pathlib
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
@@ -52,10 +53,12 @@ class TestCommonDirective(Directive):
         if self.test_file is None:
             raise TestReportFileNotSetException("Option test_file must be set.")
 
-        root_path = self.app.config.tr_rootdir
-        if not os.path.isabs(self.test_file):
-            self.test_file = os.path.join(root_path, self.test_file)
-        if not os.path.exists(self.test_file):
+        test_path = pathlib.Path(self.test_file)
+        if not test_path.is_absolute():
+            root_path = pathlib.Path(self.app.config.tr_rootdir)
+            test_path = root_path / test_path
+        self.test_file = str(test_path)
+        if not test_path.exists():
             # raise TestReportFileInvalidException('Given test_file path invalid: {}'.format(self.test_file))
             self.log.warning(
                 "Given test_file path invalid: {} in {} (Line: {})".format(
