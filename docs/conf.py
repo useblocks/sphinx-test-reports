@@ -7,26 +7,25 @@
 
 # -- Path setup --------------------------------------------------------------
 
+import datetime
+import os
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 # import os
 import sys
-import datetime
-import os
 
-sys.path.append(os.path.abspath('.'))
+sys.path.append(os.path.abspath("."))
 
-from ub_theme.conf import html_theme_options
+from ub_theme.conf import html_theme_options  # noqa
 
 # -- Project information -----------------------------------------------------
 
 project = "sphinx-test-reports"
 now = datetime.datetime.now()
-copyright = 'team useblocks, 2017-{year}'.format(
-    year=now.year
-)
+copyright = f"team useblocks, 2017-{now.year}"
 author = "team useblocks"
 
 # The short X.Y version
@@ -49,7 +48,7 @@ extensions = [
     "sphinxcontrib.test_reports",
     "sphinxcontrib.plantuml",
     "sphinx_design",
-    "sphinx_immaterial"
+    "sphinx_immaterial",
 ]
 
 cwd = os.getcwd()
@@ -65,7 +64,7 @@ plantuml_output_format = "png"
 
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates', 'ub_theme/templates']
+templates_path = ["_templates", "ub_theme/templates"]
 # Add a custom test report template. Please add a relative path from this conf.py
 # tr_report_template = "./custom_test_report_template.txt"
 
@@ -108,7 +107,6 @@ html_theme = "sphinx_immaterial"
 html_logo = "_static/sphinx-test-reports-logo.svg"
 html_favicon = "_static/sphinx-test-reports-logo.svg"
 html_title = "Sphinx-Test-Reports"
-html_theme_options = html_theme_options
 
 other_options = {
     "repo_url": "https://github.com/useblocks/sphinx-test-reports",

@@ -12,16 +12,12 @@ repos:
           - flake8-bugbear
           - flake8-comprehensions
           - flake8-simplify
+          - flake8-isort
           - pep8-naming
 
         # ignore sim118 ("do not use dict.keys()") for clarity
         args: [--max-line-length=120, --ignore=SIM118]
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        args: [-l 120,]
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.3.1
     hooks:
