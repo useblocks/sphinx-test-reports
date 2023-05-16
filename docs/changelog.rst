@@ -10,6 +10,8 @@ Changelog
 * Updated project documentation to use the Useblocks theme customization.
 * Improvement: Template file encoding coud be configured. See :ref:`tr_import_encoding`.
   `#60 <https://github.com/useblocks/sphinx-test-reports/issues/60>`_
+*  Improvement: Supporting JSON files containing test results: :ref:`json_parser`.
+*  Improvement: Implemented :ref:`tr_json_mapping` config option for JSON mapping.
 
 1.0.2
 -----
