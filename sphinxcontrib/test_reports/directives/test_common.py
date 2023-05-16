@@ -9,6 +9,7 @@ from sphinx.util import logging
 from sphinx_needs.api import make_hashed_id
 
 from sphinxcontrib.test_reports.exceptions import SphinxError, TestReportFileNotSetException
+from sphinxcontrib.test_reports.jsonparser import JsonParser
 from sphinxcontrib.test_reports.junitparser import JUnitParser
 
 # fmt: on
@@ -65,7 +66,10 @@ class TestCommonDirective(Directive):
             return None
 
         if self.test_file not in self.app.testreport_data.keys():
-            parser = JUnitParser(self.test_file)
+            if os.path.splitext(self.test_file)[1] == ".json":
+                parser = JsonParser(self.test_file)
+            else:
+                parser = JUnitParser(self.test_file)
             self.app.testreport_data[self.test_file] = parser.parse()
 
         self.results = self.app.testreport_data[self.test_file]
