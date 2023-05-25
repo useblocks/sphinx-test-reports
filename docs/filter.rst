@@ -56,8 +56,8 @@ Use it like::
       :types: Test-File
       :columns: id, file, suites, cases, passed
 
-We set ``types`` to ``test_file`` to document needs-objects from this type only.
-``Sphinx-Test-Reports`` provides also ``test_suite`` and ``test_case``.
+We set ``types`` to ``Test-File`` to document needs-objects from this type only.
+``Sphinx-Test-Reports`` provides also ``Test-Suite`` and ``Test-Case``.
 
 With ``columns`` we can specify which data of a ``test_file`` we want to see.
 
