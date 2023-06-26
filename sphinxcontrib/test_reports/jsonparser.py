@@ -23,21 +23,20 @@ def dict_get(root, items, default=None):
     """
     try:
         value = reduce(operator.getitem, items, root)
-    except (KeyError, IndexError, TypeError) as e:
+    except (KeyError, IndexError, TypeError):
         return default
     return value
+
 
 class JsonParser:
     def __init__(self, json_path, *args, **kwargs):
         self.json_path = json_path
 
         if not os.path.exists(self.json_path):
-            raise JsonFileMissing(
-                f"The given file does not exist: {self.json_path}"
-            )
+            raise JsonFileMissing(f"The given file does not exist: {self.json_path}")
 
         self.json_data = []
-        with open(self.json_path, 'r') as jfile:
+        with open(self.json_path) as jfile:
             self.json_data = json.load(jfile)
 
     def validate(self):
@@ -54,34 +53,34 @@ class JsonParser:
         """
 
         def parse_testcase(json_dict):
-            testcase = json_dict
+            # testcase = json_dict
 
             # ToDo: Replace dict-keys by values from conf.py
             tc_dict = {
-                "classname": dict_get(json_dict, ['classname'], 'unknown'),
-                "file": dict_get(json_dict, ['test', 'file'], 'unknown'),
+                "classname": dict_get(json_dict, ["classname"], "unknown"),
+                "file": dict_get(json_dict, ["test", "file"], "unknown"),
                 "line": dict_get(json_dict, ["line"], -1),
                 "name": dict_get(json_dict, ["name"], "unknown"),
                 "time": dict_get(json_dict, ["time"], -1),
-                "result": dict_get(json_dict, ["result"], 'unknown'),
-                "type": dict_get(json_dict, ["type"], 'unknown'),
-                "text": dict_get(json_dict, ["text"], 'unknown'),
-                "message": dict_get(json_dict, ["message"], 'unknown'),
-                "system-out": dict_get(json_dict, ["system-out"], 'unknown'),
+                "result": dict_get(json_dict, ["result"], "unknown"),
+                "type": dict_get(json_dict, ["type"], "unknown"),
+                "text": dict_get(json_dict, ["text"], "unknown"),
+                "message": dict_get(json_dict, ["message"], "unknown"),
+                "system-out": dict_get(json_dict, ["system-out"], "unknown"),
             }
             return tc_dict
 
         def parse_testsuite(json_dict):
-            testsuite = json_dict
+            # testsuite = json_dict
 
             ts_dict = {
-                "name":  dict_get(json_dict, ["name"], "unknown"),
+                "name": dict_get(json_dict, ["name"], "unknown"),
                 "tests": dict_get(json_dict, ["tests"], -1),
                 "errors": dict_get(json_dict, ["errors"], -1),
                 "failures": dict_get(json_dict, ["failures"], -1),
                 "skips": dict_get(json_dict, ["skips"], -1),
                 "passed": dict_get(json_dict, ["passed"], -1),
-                "time":  dict_get(json_dict, ["time"], -1),
+                "time": dict_get(json_dict, ["time"], -1),
                 "testcases": [],
                 "testsuite_nested": [],
             }

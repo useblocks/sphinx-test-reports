@@ -93,17 +93,17 @@ class TestCommonDirective(Directive):
                 ),
             )
         else:
-            self.test_id = self.options.get("id", None)
+            self.test_id = self.options.get("id")
 
         if self.test_id is None:
             raise SphinxError("ID must be set for test-report.")
 
-        self.test_file = self.options.get("file", None)
+        self.test_file = self.options.get("file")
         self.test_file_given = self.test_file[:]
 
         self.test_links = self.options.get("links", "")
         self.test_tags = self.options.get("tags", "")
-        self.test_status = self.options.get("status", None)
+        self.test_status = self.options.get("status")
 
         self.collapse = str(self.options.get("collapse", ""))
 
