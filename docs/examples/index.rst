@@ -1,7 +1,5 @@
 Examples
 ========
-.. contents:: Contents
-   :local:
 
 .. _json_example:
 
