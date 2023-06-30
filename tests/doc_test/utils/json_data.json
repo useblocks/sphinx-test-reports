@@ -29,7 +29,7 @@
         "result": "passed",
         "type": "test type",
         "text": "test text",
-        "message": "all went wrong :( (message)",
+        "message": "all went great :) (message)",
         "system-out": "system-out text"
       },
       {

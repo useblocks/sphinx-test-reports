@@ -17,7 +17,35 @@ def test_init_json_parser():
 def test_parse_json_data():
     from sphinxcontrib.test_reports.jsonparser import JsonParser
 
-    parser = JsonParser(json_path)
+    json_mapping = {
+        "json_config": {
+            "testsuite": {
+                "name": (["name"], "unknown"),
+                "tests": (["tests"], "unknown"),
+                "errors": (["errors"], "unknown"),
+                "failures": (["failures"], "unknown"),
+                "skips": (["skips"], "unknown"),
+                "passed": (["passed"], "unknown"),
+                "time": (["time"], "unknown"),
+                "testcases": (["testcase"], "unknown"),
+            },
+            "testcase": {
+                "name": (["name"], "unknown"),
+                "classname": (["classname"], "unknown"),
+                "file": (["file"], "unknown"),
+                "line": (["line"], "unknown"),
+                "time": (["time"], "unknown"),
+                "result": (["result"], "unknown"),
+                "type": (["type"], "unknown"),
+                "text": (["text"], "unknown"),
+                "message": (["message"], "unknown"),
+                "system-out": (["system-out"], "unknown"),
+            },
+        }
+    }
+
+    mapping = list(json_mapping.values())[0]
+    parser = JsonParser(json_path, json_mapping=mapping)
     results = parser.parse()
     assert results is not None
     assert len(results) == 1

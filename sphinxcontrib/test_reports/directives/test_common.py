@@ -8,7 +8,8 @@ from docutils.parsers.rst import Directive
 from sphinx.util import logging
 from sphinx_needs.api import make_hashed_id
 
-from sphinxcontrib.test_reports.exceptions import SphinxError, TestReportFileNotSetException
+from sphinxcontrib.test_reports.exceptions import (
+    SphinxError, TestReportFileNotSetException)
 from sphinxcontrib.test_reports.jsonparser import JsonParser
 from sphinxcontrib.test_reports.junitparser import JUnitParser
 
@@ -67,7 +68,8 @@ class TestCommonDirective(Directive):
 
         if self.test_file not in self.app.testreport_data.keys():
             if os.path.splitext(self.test_file)[1] == ".json":
-                parser = JsonParser(self.test_file)
+                mapping = list(self.app.config.tr_json_mapping.values())[0]
+                parser = JsonParser(self.test_file, json_mapping=mapping)
             else:
                 parser = JUnitParser(self.test_file)
             self.app.testreport_data[self.test_file] = parser.parse()

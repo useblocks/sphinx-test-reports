@@ -8,8 +8,8 @@ API must be in sync with the JUnit parser in ``junitparser.py``.
 import json
 import operator
 import os
-
 from functools import reduce
+from typing import Any, Dict, List
 
 
 def dict_get(root, items, default=None):
@@ -39,12 +39,14 @@ class JsonParser:
         with open(self.json_path) as jfile:
             self.json_data = json.load(jfile)
 
+        self.json_mapping = kwargs.get("json_mapping", {})
+
     def validate(self):
         # For JSON we validate nothing here.
         # But to be compatible with the API, we need to return True
         return True
 
-    def parse(self):
+    def parse(self) -> List[Dict[str, Any]]:
         """
         Creates a common python list of object, no matter what information are
         supported by the parsed json file for test results junit().
@@ -52,38 +54,21 @@ class JsonParser:
         :return: list of test suites as dictionaries
         """
 
-        def parse_testcase(json_dict):
-            # testcase = json_dict
-
-            # ToDo: Replace dict-keys by values from conf.py
+        def parse_testcase(json_dict) -> Dict[str, Any]:
+            tc_mapping = self.json_mapping.get("testcase")
             tc_dict = {
-                "classname": dict_get(json_dict, ["classname"], "unknown"),
-                "file": dict_get(json_dict, ["test", "file"], "unknown"),
-                "line": dict_get(json_dict, ["line"], -1),
-                "name": dict_get(json_dict, ["name"], "unknown"),
-                "time": dict_get(json_dict, ["time"], -1),
-                "result": dict_get(json_dict, ["result"], "unknown"),
-                "type": dict_get(json_dict, ["type"], "unknown"),
-                "text": dict_get(json_dict, ["text"], "unknown"),
-                "message": dict_get(json_dict, ["message"], "unknown"),
-                "system-out": dict_get(json_dict, ["system-out"], "unknown"),
+                k: dict_get(json_dict, v[0], v[1]) for k, v in tc_mapping.items()
             }
             return tc_dict
 
-        def parse_testsuite(json_dict):
-            # testsuite = json_dict
-
+        def parse_testsuite(json_dict) -> Dict[str, Any]:
+            ts_mapping = self.json_mapping.get("testsuite")
             ts_dict = {
-                "name": dict_get(json_dict, ["name"], "unknown"),
-                "tests": dict_get(json_dict, ["tests"], -1),
-                "errors": dict_get(json_dict, ["errors"], -1),
-                "failures": dict_get(json_dict, ["failures"], -1),
-                "skips": dict_get(json_dict, ["skips"], -1),
-                "passed": dict_get(json_dict, ["passed"], -1),
-                "time": dict_get(json_dict, ["time"], -1),
-                "testcases": [],
-                "testsuite_nested": [],
+                k: dict_get(json_dict, v[0], v[1])
+                for k, v in ts_mapping.items()
+                if k != "testcases"
             }
+            ts_dict.update({"testcases": [], "testsuite_nested": []})
 
             testcases = dict_get(json_dict, ["testcase"], [])
             for tc in testcases:
