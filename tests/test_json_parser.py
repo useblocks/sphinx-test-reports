@@ -92,3 +92,20 @@ def test_json_parser_build_html(test_app):
     assert case_id in html
     # Check number of testcases
     assert html.count('<span class="needs_data">Test-Case</span>') == 3
+
+
+@pytest.mark.parametrize(
+    "test_app",
+    [{"buildername": "html", "srcdir": "doc_test/json_parser_complex"}],
+    indirect=True,
+)
+def test_json_complex_parser_build_html(test_app):
+    app = test_app
+    app.build()
+    html = Path(app.outdir, "index.html").read_text()
+
+    assert '<span class="needs_data">Test-File</span>' in html
+    assert "JSON Parser Test" in html
+    assert "PARSER_JSON_001" in html
+
+    assert "test case 2" in html

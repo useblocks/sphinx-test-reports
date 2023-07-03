@@ -70,7 +70,9 @@ class JsonParser:
             }
             ts_dict.update({"testcases": [], "testsuite_nested": []})
 
-            testcases = dict_get(json_dict, ["testcase"], [])
+            testcases = dict_get(
+                json_dict, ts_mapping["testcases"][0], ts_mapping["testcases"][1]
+            )
             for tc in testcases:
                 new_testcase = parse_testcase(tc)
                 ts_dict["testcases"].append(new_testcase)
