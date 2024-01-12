@@ -7,7 +7,10 @@ from sphinx.util.osutil import copyfile, ensuredir
 
 sphinx_version = sphinx.__version__
 if parse_version(sphinx_version) >= parse_version("1.6"):
-    from sphinx.util.display import status_iterator  # NOQA Sphinx 1.5
+    if parse_version(sphinx_version) >= parse_version("6.0"):
+        from sphinx.util.display import status_iterator
+    else:
+        from sphinx.util import status_iterator  # NOQA Sphinx 1.5
 
 STATICS_DIR_NAME = "_static"
 

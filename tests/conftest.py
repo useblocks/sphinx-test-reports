@@ -3,7 +3,15 @@ import shutil
 from tempfile import mkdtemp
 
 import pytest
+from pkg_resources import parse_version
+
+from sphinx import __version__ as sphinx_version
+
+from sphinx.testing.path import path
 from pathlib import Path
+
+def convert_path(name):
+    return name if parse_version(sphinx_version) >= parse_version("7.0") else path(name.absolute())
 
 pytest_plugins = "sphinx.testing.fixtures"
 
@@ -34,7 +42,7 @@ def test_app(make_app, request):
     # return sphinx.testing fixture make_app and new srcdir which in sphinx_test_tempdir
     app = make_app(
         buildername=builder_params.get("buildername", "html"),
-        srcdir=src_dir,
+        srcdir=convert_path(src_dir),
         freshenv=builder_params.get("freshenv"),
         confoverrides=builder_params.get("confoverrides"),
         status=builder_params.get("status"),
