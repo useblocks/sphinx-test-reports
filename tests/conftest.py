@@ -1,17 +1,21 @@
 """Pytest conftest module containing common test configuration and fixtures."""
 import shutil
+from pathlib import Path
 from tempfile import mkdtemp
 
 import pytest
 from pkg_resources import parse_version
-
 from sphinx import __version__ as sphinx_version
-
 from sphinx.testing.path import path
-from pathlib import Path
+
 
 def convert_path(name):
-    return name if parse_version(sphinx_version) >= parse_version("7.0") else path(name.absolute())
+    return (
+        name
+        if parse_version(sphinx_version) >= parse_version("7.0")
+        else path(name.absolute())
+    )
+
 
 pytest_plugins = "sphinx.testing.fixtures"
 
