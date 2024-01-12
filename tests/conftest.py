@@ -12,7 +12,7 @@ from sphinx.testing.path import path
 def convert_path(name):
     return (
         name
-        if parse_version(sphinx_version) >= parse_version("7.0")
+        if parse_version(sphinx_version) >= parse_version("7.2")
         else path(name.absolute())
     )
 
