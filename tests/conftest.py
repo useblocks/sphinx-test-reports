@@ -9,14 +9,6 @@ from sphinx import __version__ as sphinx_version
 from sphinx.testing.path import path
 
 
-def convert_path(name):
-    return (
-        name
-        if parse_version(sphinx_version) >= parse_version("7.2")
-        else path(name.absolute())
-    )
-
-
 pytest_plugins = "sphinx.testing.fixtures"
 
 
@@ -24,7 +16,11 @@ def copy_srcdir_to_tmpdir(srcdir, tmp):
     srcdir = Path(__file__).parent.absolute() / srcdir
     tmproot = tmp / Path(srcdir).name
     shutil.copytree(srcdir, tmproot)
-    return tmproot
+    return (
+        tmproot
+        if parse_version(sphinx_version) >= parse_version("7.2")
+        else path(tmproot.absolute())
+    )
 
 
 @pytest.fixture(scope="function")
@@ -46,7 +42,7 @@ def test_app(make_app, request):
     # return sphinx.testing fixture make_app and new srcdir which in sphinx_test_tempdir
     app = make_app(
         buildername=builder_params.get("buildername", "html"),
-        srcdir=convert_path(src_dir),
+        srcdir=src_dir,
         freshenv=builder_params.get("freshenv"),
         confoverrides=builder_params.get("confoverrides"),
         status=builder_params.get("status"),
