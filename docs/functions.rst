@@ -33,6 +33,10 @@ Then it goes through **all** other needs and checks if the value of their ``sour
 the ``target_option``.
 If this is the case, their IDs get stored and finally returned.
 
+In case the ``source_option`` contains a ``*`` (e.g. ``sphinxcontrib.test_reports.*``), the function will check if the
+``target_option`` matches the ``source_option``. This is useful if one wants to link multiple test results to one test case.
+
+
 **Example**::
 
    .. spec:: sphinxcontrib.test_reports.test_reports
