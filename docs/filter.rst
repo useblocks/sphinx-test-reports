@@ -22,9 +22,9 @@ Filterable data
 ``Sphinx-Test-Reports`` adds the following data to a sphinx-need-configuration:
 
 * **Types**
-   * test-file
-   * test_suite
-   * test_case
+   * Test-File
+   * Test-Suite
+   * Test-Case
 
 * **Options**
    * **file**: Test file path.
@@ -38,7 +38,7 @@ Filterable data
    * **failed**: Amount of failed test cases.
 
 Not all options are set for all created needs.
-E.g. ``test_file`` doesn't include ``case``, as it is not related to a single test case.
+E.g. ``test-file`` doesn't include ``case``, as it is not related to a single test case.
 
 The filtering possibilities are really powerful, so take a look into
 `Filtering needs <https://sphinx-needs.readthedocs.io/en/latest/filter.html>`_ to figure out how to get
@@ -58,8 +58,8 @@ Use it like::
       :types: Test-File
       :columns: id, file, suites, cases, passed
 
-We set ``types`` to ``test_file`` to document needs-objects from this type only.
-``Sphinx-Test-Reports`` provides also ``test_suite`` and ``test_case``.
+We set ``types`` to ``Test-File`` to document needs-objects from this type only.
+``Sphinx-Test-Reports`` provides also ``Test-Suite`` and ``Test-Case``.
 
 With ``columns`` we can specify which data of a ``test_file`` we want to see.
 
