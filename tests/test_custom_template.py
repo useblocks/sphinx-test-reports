@@ -8,7 +8,7 @@ import pytest
     [{"buildername": "html", "srcdir": "doc_test/custom_tr_template"}],
     indirect=True,
 )
-def test_custom_template(test_app):
+def test_custom_template(test_app, capsys):
     app = test_app
     app.build()
     html = Path(app.outdir / "index.html").read_text()

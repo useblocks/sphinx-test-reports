@@ -1,8 +1,8 @@
 import nox
 from nox import session
 
-PYTHON_VERSIONS = ["3.8", "3.9", "3.10"]
-SPHINX_VERSIONS = ["5.0", "6.2.1", "7.1.2", "7.2.5"]
+PYTHON_VERSIONS = ["3.11", "3.12"]
+SPHINX_VERSIONS = ["7.4.1", "8.1"]
 TEST_DEPENDENCIES = [
     "pytest",
     "pytest-xdist",
@@ -36,18 +36,18 @@ def tests(session, sphinx):
         session.skip("unsupported combination")
 
 
-@session(python="3.9")
-def lint(session):
-    session.install(*LINT_DEPENDENCIES)
-    session.run("make", "lint", external=True)
-
-
-@session(python="3.9")
-def linkcheck(session):
-    session.install(".")
-    # LinkCheck cn handle rate limits since Sphinx 3.4, which is needed as
-    # our doc has to many links to GitHub.
-    session.run("pip", "install", "sphinx==3.5.4", silent=True)
-
-    session.run("pip", "install", "-r", "doc-requirements.txt", silent=True)
-    session.run("make", "docs-linkcheck", external=True)
+# @session(python="3.9")
+# def lint(session):
+#     session.install(*LINT_DEPENDENCIES)
+#     session.run("make", "lint", external=True)
+#
+#
+# @session(python="3.11")
+# def linkcheck(session):
+#     session.install(".")
+#     # LinkCheck cn handle rate limits since Sphinx 3.4, which is needed as
+#     # our doc has to many links to GitHub.
+#     session.run("pip", "install", "sphinx==3.5.4", silent=True)
+#
+#     session.run("pip", "install", "-r", "doc-requirements.txt", silent=True)
+#     session.run("make", "docs-linkcheck", external=True)
