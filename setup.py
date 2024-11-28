@@ -2,15 +2,15 @@
 
 import os
 
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
-requires = ["sphinx>=4.0", "lxml", "sphinx-needs>=1.0.1"]
+requires = ["sphinx>=7.4.1", "lxml", "sphinx-needs>=4.0.0", "setuptools"]
 
 with open(os.path.join(os.path.dirname(__file__), "README.rst")) as file:
     setup(
         name="sphinx-test-reports",
         # Update also test_reports.py, conf.py and changelog!
-        version="1.0.2",
+        version="1.1.0a",
         url="http://github.com/useblocks/sphinx-test-reports",
         download_url="http://pypi.python.org/pypi/sphinx-test-reports",
         license="MIT",
@@ -33,10 +33,12 @@ with open(os.path.join(os.path.dirname(__file__), "README.rst")) as file:
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
+            "Programming Language :: Python :: 3.12",
             "Topic :: Documentation",
         ],
         platforms="any",
-        packages=find_packages(),
+        packages=find_namespace_packages(include=['sphinxcontrib.*']),
         include_package_data=True,
         install_requires=requires,
         namespace_packages=["sphinxcontrib"],

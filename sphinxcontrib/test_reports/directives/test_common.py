@@ -4,14 +4,17 @@ A Common directive, from which all other test directives inherit the shared func
 # fmt: off
 import os
 
-from docutils.parsers.rst import Directive
+from docutils.parsers.rst import Directive, directives
 from sphinx.util import logging
-from sphinx_needs.api import make_hashed_id
+from sphinx_needs.api.need import _make_hashed_id
+from sphinx_needs.config import NeedsSphinxConfig
+from sphinx_needs.data import SphinxNeedsData, NeedsInfoType
+from typing import Any, Dict, List, Iterable
 
-from sphinxcontrib.test_reports.exceptions import (
+from ..exceptions import (
     SphinxError, TestReportFileNotSetException)
-from sphinxcontrib.test_reports.jsonparser import JsonParser
-from sphinxcontrib.test_reports.junitparser import JUnitParser
+from ..jsonparser import JsonParser
+from ..junitparser import JUnitParser
 
 # fmt: on
 
@@ -20,6 +23,36 @@ class TestCommonDirective(Directive):
     """
     Common directive, which provides some shared functions to "real" directives.
     """
+
+    @classmethod 
+    def update_option_spec(cls, app):
+        """
+        Adding extra_options & extra_links defined via sphinx_needs to 'allowed' options
+        """
+        needs_config = NeedsSphinxConfig(app.config)
+
+        if not hasattr(cls, 'option_spec'):
+            cls.option_spec = {}
+        elif cls.option_spec is None: 
+            cls.option_spec = {}
+        new_options = dict(getattr(cls, 'option_spec', {}) or {})
+
+        extra_options = getattr(needs_config, 'extra_options', None)
+        if extra_options is None: 
+            extra_options = {}
+        extra_links = getattr(needs_config, 'extra_links', None)
+        if extra_links is None: 
+            extra_links = {}
+
+        extra_links_options = [x["option"] for x in extra_links]
+        all_options = extra_links_options + list(extra_options.keys())
+
+        for option in all_options:
+            if option not in new_options:
+                new_options[option] = directives.unchanged    
+
+        cls.option_spec = new_options
+        
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -90,9 +123,7 @@ class TestCommonDirective(Directive):
             self.need_type = self.app.tr_types[self.name][0]
             self.test_id = self.options.get(
                 "id",
-                make_hashed_id(
-                    self.app, self.need_type, self.test_name, self.test_content
-                ),
+                _make_hashed_id(self.need_type, self.test_name, self.test_content, NeedsSphinxConfig(self.app.config))
             )
         else:
             self.test_id = self.options.get("id")

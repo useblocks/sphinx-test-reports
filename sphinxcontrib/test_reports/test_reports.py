@@ -3,24 +3,24 @@ import os
 
 import sphinx
 from packaging.version import Version
-# from docutils import nodes
 from sphinx_needs.api import (add_dynamic_function, add_extra_option,
                               add_need_type)
 
-from sphinxcontrib.test_reports.directives.test_case import (TestCase,
+from .directives.test_case import (TestCase,
                                                              TestCaseDirective)
-from sphinxcontrib.test_reports.directives.test_env import (EnvReport,
+from .directives.test_env import (EnvReport,
                                                             EnvReportDirective)
-from sphinxcontrib.test_reports.directives.test_file import (TestFile,
+from .directives.test_file import (TestFile,
                                                              TestFileDirective)
-from sphinxcontrib.test_reports.directives.test_report import (
+from .directives.test_common import TestCommonDirective
+from .directives.test_report import (
     TestReport, TestReportDirective)
-from sphinxcontrib.test_reports.directives.test_results import (
+from .directives.test_results import (
     TestResults, TestResultsDirective)
-from sphinxcontrib.test_reports.directives.test_suite import (
+from .directives.test_suite import (
     TestSuite, TestSuiteDirective)
-from sphinxcontrib.test_reports.environment import install_styles_static_files
-from sphinxcontrib.test_reports.functions import tr_link
+from .environment import install_styles_static_files
+from .functions import tr_link
 
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):
@@ -30,7 +30,7 @@ else:
 
 # fmt: on
 
-VERSION = "1.0.2"
+VERSION = "1.1.0a"
 
 
 def setup(app):
@@ -117,6 +117,7 @@ def setup(app):
     app.connect("env-updated", install_styles_static_files)
     app.connect("config-inited", tr_preparation)
     app.connect("config-inited", sphinx_needs_update)
+    app.connect("env-before-read-docs", add_extra_options_to_directives)
 
     return {
         "version": VERSION,  # identifies the version of our extension
@@ -140,6 +141,7 @@ def tr_preparation(app, *args):
     app.add_directive(app.config.tr_file[0], TestFileDirective)
     app.add_directive(app.config.tr_suite[0], TestSuiteDirective)
     app.add_directive(app.config.tr_case[0], TestCaseDirective)
+
 
 
 def sphinx_needs_update(app, *args):
@@ -179,3 +181,14 @@ def sphinx_needs_update(app, *args):
     add_need_type(app, *app.config.tr_file[1:])
     add_need_type(app, *app.config.tr_suite[1:])
     add_need_type(app, *app.config.tr_case[1:])
+
+def add_extra_options_to_directives(app, env, *args, **kwargs):
+    """
+    Add 'needs_extra_options' to the 'opt_spec' of the directives.
+    In order to allow them to have said directives inside rst files
+    """
+    if not hasattr(env.config, 'needs_extra_options'):
+        env.config.needs_extra_options = [] 
+    TestCaseDirective.update_option_spec(app)
+    TestSuiteDirective.update_option_spec(app)
+    TestFileDirective.update_option_spec(app)
