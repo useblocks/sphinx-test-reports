@@ -4,9 +4,9 @@ import os
 from docutils import nodes
 from docutils.parsers.rst import directives
 
-from sphinxcontrib.test_reports.directives.test_common import \
+from .test_common import \
     TestCommonDirective
-from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
+from ..exceptions import InvalidConfigurationError
 
 # fmt: on
 

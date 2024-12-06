@@ -7,20 +7,20 @@ from packaging.version import Version
 from sphinx_needs.api import (add_dynamic_function, add_extra_option,
                               add_need_type)
 
-from sphinxcontrib.test_reports.directives.test_case import (TestCase,
+from .directives.test_case import (TestCase,
                                                              TestCaseDirective)
-from sphinxcontrib.test_reports.directives.test_env import (EnvReport,
+from .directives.test_env import (EnvReport,
                                                             EnvReportDirective)
-from sphinxcontrib.test_reports.directives.test_file import (TestFile,
+from .directives.test_file import (TestFile,
                                                              TestFileDirective)
-from sphinxcontrib.test_reports.directives.test_report import (
+from .directives.test_report import (
     TestReport, TestReportDirective)
-from sphinxcontrib.test_reports.directives.test_results import (
+from .directives.test_results import (
     TestResults, TestResultsDirective)
-from sphinxcontrib.test_reports.directives.test_suite import (
+from .directives.test_suite import (
     TestSuite, TestSuiteDirective)
-from sphinxcontrib.test_reports.environment import install_styles_static_files
-from sphinxcontrib.test_reports.functions import tr_link
+from .environment import install_styles_static_files
+from .functions import tr_link
 
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):

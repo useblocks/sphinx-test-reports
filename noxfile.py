@@ -1,8 +1,8 @@
 import nox
 from nox import session
 
-PYTHON_VERSIONS = ["3.8", "3.9", "3.10"]
-SPHINX_VERSIONS = ["5.0", "6.2.1", "7.1.2", "7.2.5"]
+PYTHON_VERSIONS = ["3.10", "3.11", "3.12"]
+SPHINX_VERSIONS = ["7.1.2", "7.2.5", "7.4.1"]
 TEST_DEPENDENCIES = [
     "pytest",
     "pytest-xdist",
@@ -23,6 +23,7 @@ def run_tests(session, sphinx):
     session.install(".")
     session.install(*TEST_DEPENDENCIES)
     session.run("pip", "install", f"sphinx=={sphinx}", silent=True)
+    session.run("pip", "install", "sphinx-needs==3.0", silent=True)
     session.run("pip", "install", "-r", "doc-requirements.txt", silent=True)
     session.run("make", "test", external=True)
 

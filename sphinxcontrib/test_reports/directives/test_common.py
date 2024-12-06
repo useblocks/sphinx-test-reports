@@ -8,10 +8,10 @@ from docutils.parsers.rst import Directive
 from sphinx.util import logging
 from sphinx_needs.api import make_hashed_id
 
-from sphinxcontrib.test_reports.exceptions import (
+from ..exceptions import (
     SphinxError, TestReportFileNotSetException)
-from sphinxcontrib.test_reports.jsonparser import JsonParser
-from sphinxcontrib.test_reports.junitparser import JUnitParser
+from ..jsonparser import JsonParser
+from ..junitparser import JUnitParser
 
 # fmt: on
 
