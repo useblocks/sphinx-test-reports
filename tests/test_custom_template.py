@@ -44,7 +44,5 @@ def test_custom_koi8_template(test_app):
     app.build()
     html = Path(app.outdir / "index.html").read_text(encoding="utf8")
 
-    print(html)
-
     assert "бцдеф" in html
     assert "Testfбlle" in html

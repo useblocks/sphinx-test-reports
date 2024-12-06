@@ -23,6 +23,7 @@ Basic Document FOR TEST FILE
 
 .. test-file:: My Test Data
    :file: ../utils/xml_data.xml
+   :verifies: This is an extra option
    :id: TESTFILE_1
 
 

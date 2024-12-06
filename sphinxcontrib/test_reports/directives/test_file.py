@@ -4,6 +4,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
 from sphinx_needs.utils import add_doc
+from sphinx_needs.config import NeedsSphinxConfig
 
 import sphinxcontrib.test_reports.directives.test_suite
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
@@ -35,11 +36,36 @@ class TestFileDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.suite_ids = {}
-
     def run(self):
+        self.suite_ids = {}
+        needs_config = NeedsSphinxConfig(self.env.config)
+        extra_links = needs_config.extra_links
+        extra_options = needs_config.extra_options
+        specified_opts = (
+            "docname",
+            "lineno",
+            "type",
+            "title",
+            "id",
+            "content",
+            "links",
+            "tags",
+            "status",
+            "collapse",
+            "file",
+            "suites",
+            "cases",
+            "passed",
+            "skipped",
+            "failed",
+            "errors",
+        )
+        need_extra_options = {}
+        extra_links_options = [x["option"] for x in extra_links]
+        all_options = extra_links_options + list(extra_options.keys())
+        for extra_option in all_options:
+            if extra_option not in specified_opts:
+                need_extra_options[extra_option] = self.options.get(extra_option, "")
         self.prepare_basic_options()
         results = self.load_test_file()
 
@@ -85,6 +111,7 @@ class TestFileDirective(TestCommonDirective):
             skipped=skipped,
             failed=failed,
             errors=errors,
+            **need_extra_options
         )
 
         if (

@@ -4,6 +4,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
 from sphinx_needs.utils import add_doc
+from sphinx_needs.config import NeedsSphinxConfig
 
 import sphinxcontrib.test_reports.directives.test_case
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
@@ -34,11 +35,8 @@ class TestSuiteDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def run(self, nested=False, count=-1, **kwargs):
         self.case_ids = []
-
-    def run(self, nested=False, count=-1):
         self.prepare_basic_options()
         self.load_test_file()
 
@@ -75,6 +73,34 @@ class TestSuiteDirective(TestCommonDirective):
 
         main_section = []
         docname = self.state.document.settings.env.docname
+        needs_config = NeedsSphinxConfig(self.env.config)
+        extra_links = needs_config.extra_links
+        extra_options = needs_config.extra_options
+        specified_opts = (
+            "docname",
+            "lineno",
+            "type",
+            "title",
+            "id",
+            "content",
+            "links",
+            "tags",
+            "status",
+            "collapse",
+            "file",
+            "suite",
+            "cases",
+            "passed",
+            "skipped",
+            "failed",
+            "errors",
+        )
+        need_extra_options = {}
+        extra_links_options = [x["option"] for x in extra_links]
+        all_options = extra_links_options + list(extra_options.keys())
+        for extra_option in all_options:
+            if extra_option not in specified_opts:
+                need_extra_options[extra_option] = self.options.get(extra_option, "")
         main_section += add_need(
             self.app,
             self.state,
@@ -95,6 +121,7 @@ class TestSuiteDirective(TestCommonDirective):
             skipped=skipped,
             failed=failed,
             errors=errors,
+            **need_extra_options
         )
 
         # TODO double nested logic
