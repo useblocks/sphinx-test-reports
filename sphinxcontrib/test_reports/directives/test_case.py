@@ -2,6 +2,7 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
 from sphinx_needs.utils import add_doc
+from sphinx_needs.config import NeedsSphinxConfig
 
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
@@ -32,9 +33,6 @@ class TestCaseDirective(TestCommonDirective):
     }
 
     final_argument_whitespace = True
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def run(self, nested=False, suite_count=-1, case_count=-1):
         self.prepare_basic_options()
@@ -163,6 +161,40 @@ class TestCaseDirective(TestCommonDirective):
 
         main_section = []
         docname = self.state.document.settings.env.docname
+        needs_config = NeedsSphinxConfig(self.env.config)
+        extra_links = needs_config.extra_links
+        extra_options = needs_config.extra_options
+        specified_opts = (
+            "docname",
+            "lineno",
+            "type",
+            "title",
+            "id",
+            "content",
+            "links",
+            "tags",
+            "status",
+            "collapse",
+            "file",
+            "suite",
+            "case",
+            "case_name",
+            "case_parameter",
+            "classname",
+            "result",
+            "time",
+            "style",
+            "passed",
+            "skipped",
+            "failed",
+            "errors",
+        )
+        need_extra_options = {}
+        extra_links_options = [x["option"] for x in extra_links]
+        all_options = extra_links_options + list(extra_options.keys())
+        for extra_option in all_options:
+            if extra_option not in specified_opts:
+                need_extra_options[extra_option] = self.options.get(extra_option, "")
         main_section += add_need(
             self.app,
             self.state,
@@ -185,6 +217,7 @@ class TestCaseDirective(TestCommonDirective):
             result=result,
             time=time,
             style=style,
+            **need_extra_options
         )
 
         add_doc(self.env, docname)

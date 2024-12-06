@@ -13,6 +13,7 @@ def test_doc_build_html(test_app):
     app.build()
     html = Path(app.outdir, "index.html").read_text()
     assert html
+    assert "This is an extra option" in html
 
 
 @pytest.mark.parametrize(

@@ -117,6 +117,7 @@ def setup(app):
     app.connect("env-updated", install_styles_static_files)
     app.connect("config-inited", tr_preparation)
     app.connect("config-inited", sphinx_needs_update)
+    app.connect("env-before-read-docs", add_extra_options_to_directives)
 
     return {
         "version": VERSION,  # identifies the version of our extension
@@ -179,3 +180,15 @@ def sphinx_needs_update(app, *args):
     add_need_type(app, *app.config.tr_file[1:])
     add_need_type(app, *app.config.tr_suite[1:])
     add_need_type(app, *app.config.tr_case[1:])
+
+
+def add_extra_options_to_directives(app, env, *args, **kwargs):
+    """
+    Add 'needs_extra_options' to the 'opt_spec' of the directives.
+    In order to allow them to have said directives inside rst files
+    """
+    if not hasattr(env.config, 'needs_extra_options'):
+        env.config.needs_extra_options = [] 
+    TestCaseDirective.update_option_spec(app)
+    TestSuiteDirective.update_option_spec(app)
+    TestFileDirective.update_option_spec(app)
