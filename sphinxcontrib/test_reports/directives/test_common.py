@@ -6,7 +6,8 @@ import os
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
-from sphinx_needs.api import make_hashed_id
+from sphinx_needs.api.need import _make_hashed_id
+from sphinx_needs.config import NeedsSphinxConfig
 
 from sphinxcontrib.test_reports.exceptions import (
     SphinxError, TestReportFileNotSetException)
@@ -90,9 +91,7 @@ class TestCommonDirective(Directive):
             self.need_type = self.app.tr_types[self.name][0]
             self.test_id = self.options.get(
                 "id",
-                make_hashed_id(
-                    self.app, self.need_type, self.test_name, self.test_content
-                ),
+                _make_hashed_id(self.need_type, self.test_name, self.test_content, NeedsSphinxConfig(self.app.config)),
             )
         else:
             self.test_id = self.options.get("id")
