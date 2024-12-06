@@ -5,9 +5,9 @@ from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
 from sphinx_needs.utils import add_doc
 
-import sphinxcontrib.test_reports.directives.test_suite
-from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
-from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfiguration
+from .test_suite import TestSuiteDirective
+from .test_common import TestCommonDirective
+from ..exceptions import TestReportIncompleteConfiguration
 
 
 class TestFile(nodes.General, nodes.Element):
@@ -124,7 +124,7 @@ class TestFileDirective(TestCommonDirective):
 
                 arguments = [suite["name"]]
                 suite_directive = (
-                    sphinxcontrib.test_reports.directives.test_suite.TestSuiteDirective(
+                    TestSuiteDirective(
                         self.app.config.tr_suite[0],
                         arguments,
                         options,
