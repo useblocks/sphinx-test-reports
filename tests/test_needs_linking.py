@@ -2,8 +2,6 @@ from pathlib import Path
 
 import pytest
 
-# links_outgoing = """<div class="line"><span><div class="line">links outgoing: <span class="links"><span><a class="reference internal" href="#TEST_1" title="TEST_4">TEST_1</a>, <a class="reference internal" href="#TEST_2" title="TEST_4">TEST_2</a></span></span></div>"""
-# links_incoming = """<div class="line">links incoming: <span class="links"><span><a class="reference internal" href="#TEST_3" title="TEST_4">TEST_3</a></span></span></div>
 @pytest.mark.parametrize(
     "test_app",
     [{"buildername": "html", "srcdir": "doc_test/needs_linking"}],
