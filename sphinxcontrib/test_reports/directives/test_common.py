@@ -69,9 +69,7 @@ class TestCommonDirective(Directive):
             self.test_file = os.path.join(root_path, self.test_file)
         if not os.path.exists(self.test_file):
             # raise TestReportFileInvalidException('Given test_file path invalid: {}'.format(self.test_file))
-            self.log.warning(
-                f"Given test_file path invalid: {self.test_file} in {self.docname} (Line: {self.lineno})"
-            )
+            self.log.warning(f"Given test_file path invalid: {self.test_file} in {self.docname} (Line: {self.lineno})")
             return None
 
         if self.test_file not in self.app.testreport_data.keys():
