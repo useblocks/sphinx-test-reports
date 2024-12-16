@@ -75,9 +75,11 @@ class TestReportDirective(TestCommonDirective):
             "file_type": self.app.config.tr_file[0],
             "suite_need": self.app.config.tr_suite[1],
             "case_need": self.app.config.tr_case[1],
-            "tags": ";".join([self.test_tags, self.test_id])
-            if len(self.test_tags) > 0
-            else self.test_id,
+            "tags": (
+                ";".join([self.test_tags, self.test_id])
+                if len(self.test_tags) > 0
+                else self.test_id
+            ),
             "links_string": links_string,
             "title": self.test_name,
             "content": self.content,

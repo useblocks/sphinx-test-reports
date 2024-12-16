@@ -2,7 +2,6 @@ import os
 
 import sphinx
 from packaging.version import Version
-
 from sphinx.util.console import brown
 from sphinx.util.osutil import copyfile, ensuredir
 

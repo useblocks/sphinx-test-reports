@@ -6,7 +6,8 @@ from sphinx_needs.api import add_need
 from sphinx_needs.utils import add_doc
 
 import sphinxcontrib.test_reports.directives.test_case
-from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
+from sphinxcontrib.test_reports.directives.test_common import \
+    TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
 
 

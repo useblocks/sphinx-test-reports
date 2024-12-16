@@ -5,6 +5,7 @@ Must be configured via config, as there is no known standard for Test data in JS
 
 API must be in sync with the JUnit parser in ``junitparser.py``.
 """
+
 import json
 import operator
 import os

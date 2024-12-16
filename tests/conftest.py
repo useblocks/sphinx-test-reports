@@ -1,4 +1,5 @@
 """Pytest conftest module containing common test configuration and fixtures."""
+
 import shutil
 from pathlib import Path
 from tempfile import mkdtemp
