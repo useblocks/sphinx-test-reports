@@ -6,13 +6,22 @@ import os
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
-from sphinx_needs.api.need import _make_hashed_id
 from sphinx_needs.config import NeedsSphinxConfig
 
 from sphinxcontrib.test_reports.exceptions import (
     SphinxError, TestReportFileNotSetException)
 from sphinxcontrib.test_reports.jsonparser import JsonParser
 from sphinxcontrib.test_reports.junitparser import JUnitParser
+
+from importlib.metadata import version
+sn_major_version = int(version("sphinx-needs").split('.')[0])
+
+if sn_major_version >= 4:
+    from sphinx_needs.api.need import _make_hashed_id
+else:
+    from sphinx_needs.api import make_hashed_id
+
+
 
 # fmt: on
 
@@ -89,9 +98,14 @@ class TestCommonDirective(Directive):
         self.test_content = "\n".join(self.content)
         if self.name != "test-report":
             self.need_type = self.app.tr_types[self.name][0]
+            if sn_major_version >= 4:
+                hashed_id = _make_hashed_id(self.need_type, self.test_name, self.test_content, NeedsSphinxConfig(self.app.config))
+            else: # Sphinx-Needs < 4
+                hashed_id = make_hashed_id(self.app, self.need_type, self.test_name, self.test_content)
+               
             self.test_id = self.options.get(
                 "id",
-                _make_hashed_id(self.need_type, self.test_name, self.test_content, NeedsSphinxConfig(self.app.config)),
+                hashed_id,
             )
         else:
             self.test_id = self.options.get("id")

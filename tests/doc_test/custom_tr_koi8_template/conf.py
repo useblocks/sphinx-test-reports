@@ -135,9 +135,9 @@ html_theme_options = {
 # default: ``['localtoc.html', 'relations.html', 'sourcelink.html',
 # 'searchbox.html']``.
 #
-html_sidebars = {
-    "**": ["about.html", "navigation.html"],
-}
+# html_sidebars = {
+#     "**": ["about.html", "navigation.html"],
+# }
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
