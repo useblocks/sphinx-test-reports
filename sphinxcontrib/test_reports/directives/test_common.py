@@ -70,9 +70,7 @@ class TestCommonDirective(Directive):
         if not os.path.exists(self.test_file):
             # raise TestReportFileInvalidException('Given test_file path invalid: {}'.format(self.test_file))
             self.log.warning(
-                "Given test_file path invalid: {} in {} (Line: {})".format(
-                    self.test_file, self.docname, self.lineno
-                )
+                f"Given test_file path invalid: {self.test_file} in {self.docname} (Line: {self.lineno})"
             )
             return None
 
@@ -106,9 +104,7 @@ class TestCommonDirective(Directive):
                     NeedsSphinxConfig(self.app.config),
                 )
             else:  # Sphinx-Needs < 4
-                hashed_id = make_hashed_id(
-                    self.app, self.need_type, self.test_name, self.test_content
-                )
+                hashed_id = make_hashed_id(self.app, self.need_type, self.test_name, self.test_content)
 
             self.test_id = self.options.get(
                 "id",
