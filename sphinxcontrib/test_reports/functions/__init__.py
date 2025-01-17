@@ -3,7 +3,7 @@ def tr_link(app, need, needs, test_option, target_option, *args, **kwargs):
         return ""
 
     # Allow for multiple values in option
-    test_opt_values = need[test_option].split(",")    
+    test_opt_values = need[test_option].split(",")
 
     links = []
     for need_target in needs.values():
