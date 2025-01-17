@@ -1,5 +1,4 @@
 # fmt: off
-import os
 import pathlib
 
 from docutils import nodes
@@ -55,8 +54,7 @@ class TestReportDirective(TestCommonDirective):
                 f"could not find a template file with name {template_path} in conf.py directory"
             )
 
-        with template_path.open() as template_file:
-
+        with template_path.open(encoding=self.app.config.tr_import_encoding) as template_file:
             template = "".join(template_file.readlines())
 
         if self.test_links is not None and len(self.test_links) > 0:
