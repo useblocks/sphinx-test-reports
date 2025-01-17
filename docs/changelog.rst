@@ -11,7 +11,8 @@ Changelog
 -----
 :Released: 17.01.2025
 
-* Bugfix: Compatible with Sphinx-Needs >= 4.0
+* Bugfix: Compatible with Sphinx-Needs >= 4.0.
+* Bugfix: Path handling is os independent.
 * Improvement: Referenced target_option in `tr_link` can contain a comma separated list.
 * Improvement: The new :ref:`json_parser` is introduced.
 * Improvement: Template file encoding could be configured. See :ref:`tr_import_encoding`.
