@@ -23,8 +23,8 @@ Filterable data
 
 * **Types**
    * test-file
-   * test_suite
-   * test_case
+   * test-suite
+   * test-case
 
 * **Options**
    * **file**: Test file path.
@@ -38,7 +38,7 @@ Filterable data
    * **failed**: Amount of failed test cases.
 
 Not all options are set for all created needs.
-E.g. ``test_file`` doesn't include ``case``, as it is not related to a single test case.
+E.g. ``test-file`` doesn't include ``case``, as it is not related to a single test case.
 
 The filtering possibilities are really powerful, so take a look into
 `Filtering needs <https://sphinx-needs.readthedocs.io/en/latest/filter.html>`_ to figure out how to get
@@ -58,10 +58,10 @@ Use it like::
       :types: test-file
       :columns: id, file, suites, cases, passed
 
-We set ``types`` to ``test_file`` to document needs-objects from this type only.
-``Sphinx-Test-Reports`` provides also ``test_suite`` and ``test_case``.
+We set ``types`` to ``test-file`` to document needs-objects from this type only.
+``Sphinx-Test-Reports`` provides also ``test-suite`` and ``test-case``.
 
-With ``columns`` we can specify which data of a ``test_file`` we want to see.
+With ``columns`` we can specify which data of a ``test-file`` we want to see.
 
 
 **Example**
