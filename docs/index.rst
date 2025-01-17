@@ -47,7 +47,7 @@ A single documented test-case looks like this:
    :case: test_add_source_parser
    :collapse: FALSE
 
-   Custom Message: The result is **[[copy('result')]]** with an execution time of **[[copy('time')]]**.
+   Custom Message: The result is :ndf:`copy('result')` with an execution time of :ndf:`copy('time')`.
 
    Now follows automatically generated output like system-out, messages and text of the test-case.
 
@@ -75,6 +75,7 @@ Content
    install
    directives/index
    configuration
+   parsers
    filter
    functions
    examples/index
@@ -124,27 +125,6 @@ In the last years, we have created additional information and extensions, which 
         +++
 
         .. button-link:: https://sphinx-needs.readthedocs.io/en/latest/
-            :color: primary
-            :outline:
-            :align: center
-            :expand:
-
-            :octicon:`book;1em;sd-text-primary` Technical Docs
-
-    .. grid-item-card::
-        :columns: 12 6 6 6
-        :link: https://useblocks.com/sphinx-needs-enterprise/
-        :img-top: /_static/sphinx-needs-enterprise-card.png
-        :class-card: border
-
-        Sphinx-Needs Enterprise
-        ^^^^^^^^^^^^^^^^^^^^^^^
-        Synchronize Sphinx-Needs data with external, company internal systems like CodeBeamer, Jira or Azure Boards.
-
-        Provides scripts to baseline data and makes CI usage easier.
-        +++
-
-        .. button-link:: http://useblocks.com/sphinx-needs-enterprise/
             :color: primary
             :outline:
             :align: center

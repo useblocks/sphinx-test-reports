@@ -5,10 +5,10 @@ import os
 import sphinx
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
-from pkg_resources import parse_version
+from packaging.version import Version
 
 sphinx_version = sphinx.__version__
-if parse_version(sphinx_version) >= parse_version("1.6"):
+if Version(sphinx_version) >= Version("1.6"):
     from sphinx.util import logging
 else:
     import logging
@@ -39,8 +39,8 @@ class EnvReportDirective(Directive):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.data_option = self.options.get("data", None)
-        self.environments = self.options.get("env", None)
+        self.data_option = self.options.get("data")
+        self.environments = self.options.get("env")
 
         if self.environments is not None:
             self.req_env_list_cpy = self.environments.split(",")
@@ -78,11 +78,7 @@ class EnvReportDirective(Directive):
             try:
                 results = json.load(fp_json)
             except ValueError:
-                raise InvalidJsonFile(
-                    "The given file {} is not a valid JSON".format(
-                        json_path.split("/")[-1]
-                    )
-                )
+                raise InvalidJsonFile("The given file {} is not a valid JSON".format(json_path.split("/")[-1]))
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:
@@ -118,9 +114,7 @@ class EnvReportDirective(Directive):
                     # option check
                     for opt in self.data_option_list:
                         if opt not in temp_dict2[enviro]:
-                            logger.warning(
-                                f"option '{opt}' is not present in JSON file"
-                            )
+                            logger.warning(f"option '{opt}' is not present in JSON file")
 
                 del temp_dict
 
@@ -146,11 +140,7 @@ class EnvReportDirective(Directive):
                 # option check
                 for opt in self.data_option_list:
                     if opt not in temp_dict2[enviro]:
-                        logger.warning(
-                            "option '{}' is not present in '{}' environment file".format(
-                                opt, enviro
-                            )
-                        )
+                        logger.warning(f"option '{opt}' is not present in '{enviro}' environment file")
 
                 del temp_dict
 

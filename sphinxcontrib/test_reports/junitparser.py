@@ -1,3 +1,7 @@
+"""
+JUnit XML parser
+"""
+
 import os
 
 from lxml import etree, objectify
@@ -16,9 +20,7 @@ class JUnitParser:
         self.valid_xml = None
 
         if not os.path.exists(self.junit_xml_path):
-            raise JUnitFileMissing(
-                f"The given file does not exist: {self.junit_xml_path}"
-            )
+            raise JUnitFileMissing(f"The given file does not exist: {self.junit_xml_path}")
         self.junit_xml_doc = etree.parse(self.junit_xml_path)
 
         self.junit_xml_string = etree.tostring(self.junit_xml_doc)
@@ -41,7 +43,6 @@ class JUnitParser:
         """
 
         def parse_testcase(xml_object):
-
             testcase = xml_object
 
             tc_dict = {
@@ -83,7 +84,6 @@ class JUnitParser:
             return tc_dict
 
         def parse_testsuite(xml_object):
-
             testsuite = xml_object
 
             tests = int(testsuite.attrib.get("tests", -1))
@@ -112,14 +112,12 @@ class JUnitParser:
 
             # add nested testsuite objects to
             if hasattr(testsuite, "testsuite"):
-
                 for ts in testsuite.testsuite:
                     # dict from inner parse
                     inner_testsuite = parse_testsuite(ts)
                     ts_dict["testsuite_nested"].append(inner_testsuite)
 
             elif hasattr(testsuite, "testcase"):
-
                 for tc in testsuite.testcase:
                     new_testcase = parse_testcase(tc)
                     ts_dict["testcases"].append(new_testcase)

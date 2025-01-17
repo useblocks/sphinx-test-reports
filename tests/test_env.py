@@ -5,9 +5,7 @@ from subprocess import STDOUT, check_output
 import pytest
 import sphinx
 
-sphinx_version = int(
-    sphinx.__version__.split(".")[0] + sphinx.__version__.split(".")[1]
-)
+sphinx_version = int(sphinx.__version__.split(".")[0] + sphinx.__version__.split(".")[1])
 
 
 @pytest.mark.parametrize(
@@ -112,7 +110,6 @@ def test_doc_env_report_default_build_html(test_app):
     indirect=True,
 )
 def test_doc_env_report_warning_build_html(test_app):
-
     # it should pass all test cases from: test_doc_env_report_build_html
     # generated output data will be stored here
     app = test_app
