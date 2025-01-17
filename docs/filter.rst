@@ -55,7 +55,7 @@ Use it like::
 
 
    .. needtable::
-      :types: Test-File
+      :types: test-file
       :columns: id, file, suites, cases, passed
 
 We set ``types`` to ``test_file`` to document needs-objects from this type only.
@@ -67,7 +67,7 @@ With ``columns`` we can specify which data of a ``test_file`` we want to see.
 **Example**
 
 .. needtable::
-   :types: Test-File
+   :types: test-file
    :columns: id, file, suites, cases, passed
 
 .. _needlist_filter:
@@ -82,7 +82,7 @@ The filter possibilities are the same as for  :ref:`needtable <needtable_filter>
 Usage::
 
    .. needlist::
-      :types: Test-File
+      :types: test-file
       :filter: cases.isdigit() and int(cases) > 4
 
 ``filter`` supports complex-filter operations by using a Python-statement.
@@ -96,7 +96,7 @@ of the Sphinx-Needs documentations for more details and ideas how to use it.
 **Example**
 
 .. needlist::
-   :types: Test-File
+   :types: test-file
    :filter: cases.isdigit() and int(cases) >= 5
 
 
@@ -116,7 +116,7 @@ needflow - Flow charts of linked test data
 Usage::
 
    .. needflow::
-      :types: Test-File, Test-Suite, Test-Case
+      :types: test-file, test-suite, test-case
       :filter: len(links) > 0 or len(links_back) > 0
 
 The used ``:filter:`` allows needs only, if they have an outgoing or incoming link.
@@ -124,5 +124,5 @@ The used ``:filter:`` allows needs only, if they have an outgoing or incoming li
 **Example**
 
 .. .. needflow::
-   :types: Test-File, Test-Suite, Test-Case
+   :types: test-file, test-suite, test-case
    :filter: (len(links) > 0 or len(links_back) > 0) and "example" not in tags and "auto" not in tags and "pytest_sphinx" not in tags
