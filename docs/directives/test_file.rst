@@ -60,32 +60,9 @@ All other options like ``tags``, ``links``, ``status`` are copied from ``test-fi
 ``links`` will also contain links to the parent objects, e.g. a ``test-case`` has links to the ``test-suite`` and also
 to the ``test-file``.
 
-Using Extra Options
-~~~~~~~~~~~~~~~~~~~
-
-You can add custom options to the ``test-file`` directive by configuring the ``tr_extra_options`` value in your ``conf.py``.
+You can add custom options to the ``test-file`` directive by configuring the :ref:`tr_extra_options` value in your ``conf.py``.
 These must also be defined in either ``needs_extra_options`` or ``needs_extra_links``. 
 
-
-.. code-block:: python
-
-   # In conf.py
-   tr_extra_options = ['more_info', 'related_to', 'priority']
-   
-   # Define as regular options
-   needs_extra_options = ['more_info', 'priority']
-   
-You can then use these options in your directives:
-
-.. code-block:: rst
-
-   .. test-file:: Enhanced test data
-      :file: path/to/test_data.xml
-      :id: TESTFILE_EXTRA
-      :more_info: This is additional information about the test
-      :priority: high
-
-   This test file contains enhanced metadata using custom extra options.
 
 Example
 -------

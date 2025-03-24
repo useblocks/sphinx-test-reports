@@ -38,7 +38,7 @@ The following options can be set:
 These options can also be used to :ref:`filter for certain test-files <filter>`.
 
 
-You can add custom options to the ``test-case`` directive by configuring the ``tr_extra_options`` value in your ``conf.py``.
+You can add custom options to the ``test-case`` directive by configuring the :ref:`tr_extra_options` value in your ``conf.py``.
 These must also be defined in either ``needs_extra_options`` or ``needs_extra_links``. 
 
 Example
