@@ -86,10 +86,9 @@ class EnvReportDirective(Directive):
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:
-            not_present_env = []
-            for req_env in self.req_env_list:
-                if req_env not in results:
-                    not_present_env.append(req_env)
+            not_present_env = [
+                req_env for req_env in self.req_env_list if req_env not in results
+            ]
             for not_env in not_present_env:
                 self.req_env_list.remove(not_env)
                 logger.warning(f"environment '{not_env}' is not present in JSON file")
