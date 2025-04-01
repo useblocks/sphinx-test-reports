@@ -25,3 +25,15 @@ repos:
     rev: v0.16.0
     hooks:
       - id: yamlfmt
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        files: sphinxcontrib/.*
+        args: []
+        additional_dependencies:
+          - sphinx==7.4.7
+          - sphinx-needs==5.1
+          - docutils==0.20
+          - types-docutils==0.20.0.20240201
