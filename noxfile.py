@@ -33,18 +33,13 @@ def tests(session, sphinx_needs, sphinx):
         session.skip("unsupported combination")
 
 
-@session(python="3.9")
+@session(python="3.12")
 def lint(session):
     session.install(*LINT_DEPENDENCIES)
     session.run("make", "lint", external=True)
 
 
-@session(python="3.9")
+@session(python="3.12")
 def linkcheck(session):
-    session.install(".")
-    # LinkCheck cn handle rate limits since Sphinx 3.4, which is needed as
-    # our doc has to many links to GitHub.
-    session.run("pip", "install", "sphinx==3.5.4", silent=True)
-
-    session.run("pip", "install", "-e", ".[test]", silent=True)
+    session.install(".[docs]")
     session.run("make", "docs-linkcheck", external=True)
