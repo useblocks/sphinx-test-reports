@@ -29,7 +29,7 @@ requires-python = ">=3.9"
 dependencies = ["sphinx>4.0", "lxml", "sphinx-needs>=1.0.1"]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0", "pytest-xdist", "nox"]
+test = ["pytest>=7.0", "pytest-xdist", "nox", "sphinxcontrib-plantuml", "sphinx_design"]
 docs = [
   "sphinx==7",
   "sphinx-needs>=4",

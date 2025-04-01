@@ -4,10 +4,6 @@ from nox import session
 PYTHON_VERSIONS = ["3.10", "3.12"]
 SPHINX_VERSIONS = ["5.0", "7.2.5", "8.1.3"]
 SPHINX_NEEDS_VERSIONS = ["2.1", "4.2"]
-TEST_DEPENDENCIES = [
-    "pytest",
-    "pytest-xdist",
-]
 LINT_DEPENDENCIES = [
     "flake8",
     "pep8-naming",
@@ -21,8 +17,7 @@ def is_supported(python: str, sphinx: str) -> bool:
 
 
 def run_tests(session, sphinx, sphinx_needs):
-    session.install(".")
-    session.install(*TEST_DEPENDENCIES)
+    session.install(".[test]")
     session.run("pip", "install", f"sphinx=={sphinx}", silent=True)
     session.run("pip", "install", f"sphinx_needs=={sphinx_needs}", silent=True)
     session.run("make", "test", external=True)
