@@ -1,8 +1,6 @@
 # Configuration for probot-baumfleger
-
 # Enabled? (optional, default false)
 enabled: true
-
 # glob or regex patterns that specify branches to ignore (optional)
 #ignore_branches:
 #  - sandfox/patch-*
