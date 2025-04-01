@@ -8,31 +8,25 @@ version = "1.2.0"
 description = "Sphinx extension for showing test results and test environment information inside sphinx documentations"
 readme = "README.rst"
 requires-python = ">=3.6"
-license = {text = "MIT"}
-authors = [
-    {name = "team useblocks", email = "info@useblocks.com"}
-]
+license = { text = "MIT" }
+authors = [{ name = "team useblocks", email = "info@useblocks.com" }]
 
-dependencies = [
-  "sphinx>4.0",
-  "lxml",
-  "sphinx-needs>=1.0.1"  
-]
+dependencies = ["sphinx>4.0", "lxml", "sphinx-needs>=1.0.1"]
 
 classifiers = [
-    "Framework :: Sphinx",
-    "Framework :: Sphinx :: Extension",
-    "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Documentation",
+  "Framework :: Sphinx",
+  "Framework :: Sphinx :: Extension",
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Documentation",
 ]
 keywords = ["sphinx", "documentation", "test-reports"]
 
@@ -70,3 +64,16 @@ extend-select = [
   # "UP",   # pyupgrade
   # "T20",  # flake8-print
 ]
+
+[tool.mypy]
+files = "sphinxcontrib"
+strict = true
+show_error_codes = true
+implicit_reexport = false
+namespace_packages = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+# disallow_any_unimported = true
+# disallow_any_explicit = true
+# disallow_any_expr = true
+# disallow_any_decorated = true
