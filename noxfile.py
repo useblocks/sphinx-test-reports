@@ -25,7 +25,6 @@ def run_tests(session, sphinx, sphinx_needs):
     session.install(*TEST_DEPENDENCIES)
     session.run("pip", "install", f"sphinx=={sphinx}", silent=True)
     session.run("pip", "install", f"sphinx_needs=={sphinx_needs}", silent=True)
-    session.run("pip", "install", "-r", "doc-requirements.txt", silent=True)
     session.run("make", "test", external=True)
 
 
@@ -52,5 +51,5 @@ def linkcheck(session):
     # our doc has to many links to GitHub.
     session.run("pip", "install", "sphinx==3.5.4", silent=True)
 
-    session.run("pip", "install", "-r", "doc-requirements.txt", silent=True)
+    session.run("pip", "install", "-e", ".[test]", silent=True)
     session.run("make", "docs-linkcheck", external=True)
