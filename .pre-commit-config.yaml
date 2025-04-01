@@ -3,6 +3,8 @@ repos:
     rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
+        # minified file
+        exclude: docs/ub_theme/js/jquery.js
       - id: trailing-whitespace
       - id: pretty-format-json
         args: [--autofix, --no-sort-keys]
@@ -33,4 +35,3 @@ repos:
       - id: pyupgrade
         args:
           - --py36-plus
-
