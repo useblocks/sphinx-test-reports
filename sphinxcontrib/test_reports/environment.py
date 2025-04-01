@@ -32,13 +32,13 @@ def safe_add_file(filename, app):
         if (
             hasattr(app.builder, "script_files")
             and static_data_file not in app.builder.script_files
-        ):  # noqa: W503
+        ):
             app.add_js_file(data_file)
     elif data_file.split(".")[-1] == "css":
         if (
             hasattr(app.builder, "css_files")
             and static_data_file not in app.builder.css_files
-        ):  # noqa: W503
+        ):
             app.add_css_file(data_file)
     else:
         raise NotImplementedError(
@@ -63,10 +63,10 @@ def safe_remove_file(filename, app):
         if (
             hasattr(app.builder, "script_files")
             and static_data_file in app.builder.script_files
-        ):  # noqa: W503
+        ):
             app.builder.script_files.remove(static_data_file)
     elif data_file.split(".")[-1] == "css" and (
-        hasattr(app.builder, "css_files") and static_data_file in app.builder.css_files  # noqa: W503
+        hasattr(app.builder, "css_files") and static_data_file in app.builder.css_files
     ):
         app.builder.css_files.remove(static_data_file)
 

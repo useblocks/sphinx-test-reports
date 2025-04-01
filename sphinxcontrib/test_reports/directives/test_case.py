@@ -5,7 +5,7 @@ from sphinx_needs.utils import add_doc
 
 from sphinxcontrib.test_reports.config import DEFAULT_OPTIONS
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
-from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
+from sphinxcontrib.test_reports.exceptions import TestReportInvalidOptionError
 
 
 class TestCase(nodes.General, nodes.Element):
@@ -48,12 +48,12 @@ class TestCaseDirective(TestCommonDirective):
         suite_name = self.options.get("suite")
 
         if suite_name is None:
-            raise TestReportInvalidOption("Suite not given!")
+            raise TestReportInvalidOptionError("Suite not given!")
 
         case_full_name = self.options.get("case")
         class_name = self.options.get("classname")
         if case_full_name is None and class_name is None:
-            raise TestReportInvalidOption("Case or classname not given!")
+            raise TestReportInvalidOptionError("Case or classname not given!")
 
         suite = None
         for suite_obj in self.results:
@@ -66,7 +66,7 @@ class TestCaseDirective(TestCommonDirective):
                 break
 
         if suite is None:
-            raise TestReportInvalidOption(
+            raise TestReportInvalidOptionError(
                 f"Suite {suite_name} not found in test file {self.test_file}"
             )
 
@@ -77,14 +77,10 @@ class TestCaseDirective(TestCommonDirective):
                 case = case_obj
                 break
 
-            elif case_obj["classname"] == class_name and case_full_name is None:  # noqa: SIM114  # noqa: W503
-                case = case_obj
-                break
-
-            elif (
+            elif (case_obj["classname"] == class_name and case_full_name is None) or (
                 case_obj["name"] == case_full_name
                 and case_obj["classname"] == class_name
-            ):  # noqa: W503
+            ):
                 case = case_obj
                 break
 
@@ -98,11 +94,9 @@ class TestCaseDirective(TestCommonDirective):
                 break
 
         if case is None:
-            raise TestReportInvalidOption(
-                "Case {} with classname {} not found in test file {} "
-                "and testsuite {}".format(
-                    case_full_name, class_name, self.test_file, suite_name
-                )
+            raise TestReportInvalidOptionError(
+                f"Case {case_full_name} with classname {class_name} not found in test file {self.test_file} "
+                f"and testsuite {suite_name}"
             )
 
         result = case["result"]

@@ -2,26 +2,29 @@
 import os
 
 import sphinx
+from docutils.parsers.rst import directives
 from packaging.version import Version
-# from docutils import nodes
-from sphinx_needs.api import (add_dynamic_function, add_extra_option,
-                              add_need_type)
 
-from sphinxcontrib.test_reports.directives.test_case import (TestCase,
-                                                             TestCaseDirective)
-from sphinxcontrib.test_reports.directives.test_env import (EnvReport,
-                                                            EnvReportDirective)
-from sphinxcontrib.test_reports.directives.test_file import (TestFile,
-                                                             TestFileDirective)
+# from docutils import nodes
+from sphinx_needs.api import add_dynamic_function, add_extra_option, add_need_type
+
+from sphinxcontrib.test_reports.directives.test_case import TestCase, TestCaseDirective
+from sphinxcontrib.test_reports.directives.test_env import EnvReport, EnvReportDirective
+from sphinxcontrib.test_reports.directives.test_file import TestFile, TestFileDirective
 from sphinxcontrib.test_reports.directives.test_report import (
-    TestReport, TestReportDirective)
+    TestReport,
+    TestReportDirective,
+)
 from sphinxcontrib.test_reports.directives.test_results import (
-    TestResults, TestResultsDirective)
+    TestResults,
+    TestResultsDirective,
+)
 from sphinxcontrib.test_reports.directives.test_suite import (
-    TestSuite, TestSuiteDirective)
+    TestSuite,
+    TestSuiteDirective,
+)
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.functions import tr_link
-from docutils.parsers.rst import directives
 
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):

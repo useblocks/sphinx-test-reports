@@ -77,12 +77,12 @@ class EnvReportDirective(Directive):
         with open(json_path) as fp_json:
             try:
                 results = json.load(fp_json)
-            except ValueError:
+            except ValueError as exc:
                 raise InvalidJsonFile(
                     "The given file {} is not a valid JSON".format(
                         json_path.split("/")[-1]
                     )
-                )
+                ) from exc
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:

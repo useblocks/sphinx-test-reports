@@ -12,7 +12,9 @@ from sphinx.util import logging
 from sphinx_needs.config import NeedsSphinxConfig
 
 from sphinxcontrib.test_reports.exceptions import (
-    SphinxError, TestReportFileNotSetException)
+    SphinxError,
+    TestReportFileNotSetError,
+)
 from sphinxcontrib.test_reports.jsonparser import JsonParser
 from sphinxcontrib.test_reports.junitparser import JUnitParser
 
@@ -74,7 +76,7 @@ class TestCommonDirective(Directive):
         :return: None
         """
         if self.test_file is None:
-            raise TestReportFileNotSetException("Option test_file must be set.")
+            raise TestReportFileNotSetError("Option test_file must be set.")
 
         test_path = pathlib.Path(self.test_file)
         if not test_path.is_absolute():

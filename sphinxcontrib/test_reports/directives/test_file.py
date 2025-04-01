@@ -7,7 +7,7 @@ from sphinx_needs.utils import add_doc
 
 import sphinxcontrib.test_reports.directives.test_suite
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
-from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfiguration
+from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfigurationError
 
 
 class TestFile(nodes.General, nodes.Element):
@@ -91,8 +91,8 @@ class TestFileDirective(TestCommonDirective):
         if (
             "auto_cases" in self.options.keys()
             and "auto_suites" not in self.options.keys()
-        ):  # noqa W 503
-            raise TestReportIncompleteConfiguration(
+        ):
+            raise TestReportIncompleteConfigurationError(
                 "option auto_cases must be used together with "
                 "auto_suites for test-file directives."
             )
@@ -102,7 +102,7 @@ class TestFileDirective(TestCommonDirective):
                 suite_id = self.test_id
                 suite_id += (
                     "_"
-                    + hashlib.sha1(suite["name"].encode("UTF-8"))  # noqa: W503
+                    + hashlib.sha1(suite["name"].encode("UTF-8"))
                     .hexdigest()
                     .upper()[: self.app.config.tr_suite_id_length]
                 )

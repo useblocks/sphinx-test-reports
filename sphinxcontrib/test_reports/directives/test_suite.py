@@ -7,7 +7,7 @@ from sphinx_needs.utils import add_doc
 
 import sphinxcontrib.test_reports.directives.test_case
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
-from sphinxcontrib.test_reports.exceptions import TestReportInvalidOption
+from sphinxcontrib.test_reports.exceptions import TestReportInvalidOptionError
 
 
 class TestSuite(nodes.General, nodes.Element):
@@ -49,7 +49,7 @@ class TestSuiteDirective(TestCommonDirective):
         suite_name = self.options.get("suite")
 
         if suite_name is None:
-            raise TestReportInvalidOption("Suite not given!")
+            raise TestReportInvalidOptionError("Suite not given!")
 
         suite = None
         for suite_obj in self.results:
@@ -62,7 +62,7 @@ class TestSuiteDirective(TestCommonDirective):
                 break
 
         if suite is None:
-            raise TestReportInvalidOption(
+            raise TestReportInvalidOptionError(
                 f"Suite {suite_name} not found in test file {self.test_file}"
             )
 
@@ -106,7 +106,7 @@ class TestSuiteDirective(TestCommonDirective):
                 suite_id = self.test_id
                 suite_id += (
                     "_"
-                    + hashlib.sha1(suite["name"].encode("UTF-8"))  # noqa: W503
+                    + hashlib.sha1(suite["name"].encode("UTF-8"))
                     .hexdigest()
                     .upper()[: self.app.config.tr_suite_id_length]
                 )
@@ -152,7 +152,7 @@ class TestSuiteDirective(TestCommonDirective):
                     "_"
                     + hashlib.sha1(
                         case["classname"].encode("UTF-8") + case["name"].encode("UTF-8")
-                    )  # noqa: W503
+                    )
                     .hexdigest()
                     .upper()[: self.app.config.tr_case_id_length]
                 )

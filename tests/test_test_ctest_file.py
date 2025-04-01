@@ -29,7 +29,9 @@ def test_test_ctest_file(test_app):
     out_dir = srcdir / "_build"
 
     out = subprocess.run(
-        ["sphinx-build", "-M", "html", srcdir, out_dir], capture_output=True
+        ["sphinx-build", "-M", "html", srcdir, out_dir],
+        capture_output=True,
+        check=False,
     )
 
     assert out.returncode == 0
