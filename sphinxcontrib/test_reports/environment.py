@@ -10,7 +10,7 @@ if Version(sphinx_version) >= Version("1.6"):
     if Version(sphinx_version) >= Version("6.1"):
         from sphinx.util.display import status_iterator
     else:
-        from sphinx.util import status_iterator  # NOQA Sphinx 1.5
+        from sphinx.util import status_iterator  # noqa: F401 # Sphinx 1.5
 
 STATICS_DIR_NAME = "_static"
 
