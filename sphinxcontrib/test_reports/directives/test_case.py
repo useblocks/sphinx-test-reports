@@ -66,7 +66,9 @@ class TestCaseDirective(TestCommonDirective):
                 break
 
         if suite is None:
-            raise TestReportInvalidOption(f"Suite {suite_name} not found in test file {self.test_file}")
+            raise TestReportInvalidOption(
+                f"Suite {suite_name} not found in test file {self.test_file}"
+            )
 
         case = None
 
@@ -79,7 +81,10 @@ class TestCaseDirective(TestCommonDirective):
                 case = case_obj
                 break
 
-            elif case_obj["name"] == case_full_name and case_obj["classname"] == class_name:  # noqa: W503
+            elif (
+                case_obj["name"] == case_full_name
+                and case_obj["classname"] == class_name
+            ):  # noqa: W503
                 case = case_obj
                 break
 
@@ -95,7 +100,9 @@ class TestCaseDirective(TestCommonDirective):
         if case is None:
             raise TestReportInvalidOption(
                 "Case {} with classname {} not found in test file {} "
-                "and testsuite {}".format(case_full_name, class_name, self.test_file, suite_name)
+                "and testsuite {}".format(
+                    case_full_name, class_name, self.test_file, suite_name
+                )
             )
 
         result = case["result"]
@@ -107,9 +114,7 @@ class TestCaseDirective(TestCommonDirective):
 
    {}
 
-""".format(
-                "\n   ".join([x.lstrip() for x in case["text"].split("\n")])
-            )
+""".format("\n   ".join([x.lstrip() for x in case["text"].split("\n")]))
 
         if case["message"] is not None and len(case["message"]) > 0:
             content += """
@@ -118,9 +123,7 @@ class TestCaseDirective(TestCommonDirective):
 
    {}
 
-""".format(
-                "\n   ".join([x.lstrip() for x in case["message"].split("\n")])
-            )
+""".format("\n   ".join([x.lstrip() for x in case["message"].split("\n")]))
 
         if case["system-out"] is not None and len(case["system-out"]) > 0:
             content += """
@@ -129,9 +132,7 @@ class TestCaseDirective(TestCommonDirective):
 
    {}
 
-""".format(
-                "\n   ".join([x.lstrip() for x in case["system-out"].split("\n")])
-            )
+""".format("\n   ".join([x.lstrip() for x in case["system-out"].split("\n")]))
 
         time = case["time"]
         style = "tr_" + case["result"]

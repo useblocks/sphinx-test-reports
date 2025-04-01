@@ -64,7 +64,9 @@ def setup(app):
     )
 
     # adds option for custom template
-    template_dir = os.path.join(os.path.dirname(__file__), "directives/test_report_template.txt")
+    template_dir = os.path.join(
+        os.path.dirname(__file__), "directives/test_report_template.txt"
+    )
     app.add_config_value("tr_report_template", template_dir, "html")
 
     app.add_config_value("tr_suite_id_length", 3, "html")
@@ -140,7 +142,9 @@ def register_tr_extra_options(app):
             for option_name in tr_extra_options:
                 direc.option_spec[option_name] = directives.unchanged
                 log.debug(f"Registered {option_name} with {direc}")
-                log.debug(f"{direc}.option_spec now has keys: {list(direc.option_spec.keys())}")
+                log.debug(
+                    f"{direc}.option_spec now has keys: {list(direc.option_spec.keys())}"
+                )
 
 
 def tr_preparation(app, *args):

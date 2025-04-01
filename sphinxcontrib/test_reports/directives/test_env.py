@@ -78,7 +78,11 @@ class EnvReportDirective(Directive):
             try:
                 results = json.load(fp_json)
             except ValueError:
-                raise InvalidJsonFile("The given file {} is not a valid JSON".format(json_path.split("/")[-1]))
+                raise InvalidJsonFile(
+                    "The given file {} is not a valid JSON".format(
+                        json_path.split("/")[-1]
+                    )
+                )
 
         # check to see if environment is present in JSON or not
         if self.req_env_list is not None:
@@ -114,7 +118,9 @@ class EnvReportDirective(Directive):
                     # option check
                     for opt in self.data_option_list:
                         if opt not in temp_dict2[enviro]:
-                            logger.warning(f"option '{opt}' is not present in JSON file")
+                            logger.warning(
+                                f"option '{opt}' is not present in JSON file"
+                            )
 
                 del temp_dict
 
@@ -140,7 +146,9 @@ class EnvReportDirective(Directive):
                 # option check
                 for opt in self.data_option_list:
                     if opt not in temp_dict2[enviro]:
-                        logger.warning(f"option '{opt}' is not present in '{enviro}' environment file")
+                        logger.warning(
+                            f"option '{opt}' is not present in '{enviro}' environment file"
+                        )
 
                 del temp_dict
 
