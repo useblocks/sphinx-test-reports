@@ -29,15 +29,21 @@ requires-python = ">=3.9"
 dependencies = ["sphinx>4.0", "lxml", "sphinx-needs>=1.0.1"]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0", "pytest-xdist", "nox", "sphinxcontrib-plantuml", "sphinx_design"]
-docs = [
-  "sphinx==7",
-  "sphinx-needs>=4",
-  "sphinx-test-reports>=0.3.3",
+test = [
+  "nox",
+  "pytest-xdist",
+  "pytest>=7.0",
+  "sphinx_design",
   "sphinxcontrib-plantuml",
+]
+docs = [
+  "pillow",
   "sphinx-design",
   "sphinx-immaterial",
-  "pillow",
+  "sphinx-needs>=4",
+  "sphinx-test-reports>=0.3.3",
+  "sphinx==7",
+  "sphinxcontrib-plantuml",
 ]
 
 [dependency-groups]
