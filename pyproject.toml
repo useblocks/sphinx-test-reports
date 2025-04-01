@@ -30,7 +30,7 @@ dependencies = ["sphinx>4.0", "lxml", "sphinx-needs>=1.0.1"]
 
 [project.optional-dependencies]
 test = [
-  "nox",
+  "nox>=2025.2.9",
   "pytest-xdist",
   "pytest>=7.0",
   "sphinx_design",
@@ -47,10 +47,10 @@ docs = [
 ]
 
 [dependency-groups]
-dev = ["pre-commit~=3.0", "tox~=4.23", "tox-uv~=1.15"]
+dev = ["pre-commit~=3.0", "nox>=2025.2.9"]
 
 [tool.flit.module]
-name = "sphinxcontrib"
+name = "sphinxcontrib.test_reports"
 
 [project.urls]
 Homepage = "https://github.com/useblocks/sphinx-test-reports"
