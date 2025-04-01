@@ -24,6 +24,4 @@ def tests(session, sphinx_needs, sphinx):
 def linkcheck(session):
     session.install(".[docs]")
     with session.chdir("docs"):
-        session.run(
-            "sphinx-build", "-b", "linkcheck", ".", "_build/linkcheck", external=True
-        )
+        session.run("make", "linkcheck", external=True)
