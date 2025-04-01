@@ -50,6 +50,7 @@ include = ["*"]
 development = ["wheel"]
 
 [tool.ruff.lint]
+# TODO enable and fix commented rules
 extend-select = [
   "B",    # flake8-bugbear
   "C4",   # flake8-comprehensions
@@ -60,7 +61,7 @@ extend-select = [
   "N",    # pep8-naming
   "PERF", # perflint (performance anti-patterns)
   "PGH",  # pygrep-hooks
-  # "PIE",  # flake8-pie
+  "PIE",  # flake8-pie
   # "PL",   # pylint
   # "PTH",  # flake8-use-pathlib
   # "RUF",  # Ruff-specific rules
