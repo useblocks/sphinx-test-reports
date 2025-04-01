@@ -62,7 +62,7 @@ jobs:
       - lint
       - linkcheck
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@release/v1
