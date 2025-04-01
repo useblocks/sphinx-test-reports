@@ -53,9 +53,7 @@ extensions = [
     "sphinx_immaterial",
 ]
 
-local_plantuml_path = os.path.join(
-    os.path.dirname(__file__), "utils", "plantuml.jar"
-)
+local_plantuml_path = os.path.join(os.path.dirname(__file__), "utils", "plantuml.jar")
 plantuml = f"java -Djava.awt.headless=true -jar {local_plantuml_path}"
 
 # If we are running on windows, we need to manipulate the path,
