@@ -60,7 +60,7 @@ extend-select = [
   # "PTH",  # flake8-use-pathlib
   # "RUF",  # Ruff-specific rules
   # "SIM",  # flake8-simplify
-  "SLF",  # private member access
+  "SLF", # private member access
   # "UP",   # pyupgrade
   # "T20",  # flake8-print
 ]
