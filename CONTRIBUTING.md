@@ -20,13 +20,13 @@ pre-commit install
 ## Managing the Python code
 
 The pyproject.toml follows the [PEP621] standard.
-To install all dependencies you may use [uv]:
+To install all dependencies for local development you may use [uv]:
 
 ```bash
 uv sync --all-groups --all-extras
 ```
 
-A Makefile exits to execute some common tasks:
+A Makefile exits to execute common tasks:
 ```bash
 make docs-html
 make docs-linkcheck
