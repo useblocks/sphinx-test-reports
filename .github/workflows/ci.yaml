@@ -48,7 +48,7 @@ jobs:
       - name: uv sync
         run: |
           uv sync --group dev
-      
+
       - name: Run mypy
         run: |
           uv run mypy
