@@ -4,20 +4,23 @@ JUnit XML parser
 
 import os
 
+from typing import Optional, Any, cast
 from lxml import etree, objectify
+from lxml.objectify import ObjectifiedElement
 
 
 class JUnitParser:
-    def __init__(self, junit_xml, junit_xsd=None):
+    def __init__(self, junit_xml: str, junit_xsd: Optional[str] = None) -> None:
+        
         self.junit_xml_path = junit_xml
 
         if junit_xsd is None:
             junit_xsd = os.path.join(os.path.dirname(__file__), "schemas", "JUnit.xsd")
         self.junit_xsd_path = junit_xsd
 
-        self.junit_schema_doc = None
-        self.xmlschema = None
-        self.valid_xml = None
+        self.junit_schema_doc: Optional[etree._ElementTree] = None
+        self.xmlschema: Optional[etree.XMLSchema] = None
+        self.valid_xml: Optional[bool] = None
 
         if not os.path.exists(self.junit_xml_path):
             raise JUnitFileMissing(
@@ -29,14 +32,16 @@ class JUnitParser:
         self.junit_xml_object = objectify.fromstring(self.junit_xml_string)
         self.junit_xml_string = str(self.junit_xml_string)
 
-    def validate(self):
+    def validate(self) -> bool:
         self.junit_schema_doc = etree.parse(self.junit_xsd_path)
         self.xmlschema = etree.XMLSchema(self.junit_schema_doc)
+        assert self.xmlschema is not None
         self.valid_xml = self.xmlschema.validate(self.junit_xml_doc)
 
         return self.valid_xml
 
-    def parse(self):
+    def parse(self) -> list[dict[str, Any]]:
+
         """
         Creates a common python list of object, no matter what information are
         supported by the parsed xml file for test results junit().
@@ -44,7 +49,7 @@ class JUnitParser:
         :return: list of test suites as dictionaries
         """
 
-        def parse_testcase(xml_object):
+        def parse_testcase(xml_object: ObjectifiedElement) -> dict[str, Any]:
             testcase = xml_object
 
             tc_dict = {
@@ -79,13 +84,13 @@ class JUnitParser:
                 tc_dict["message"] = ""
 
             if hasattr(testcase, "system-out"):
-                tc_dict["system-out"] = testcase["system-out"].text
+                tc_dict["system-out"] = getattr(testcase, "system-out").text
             else:
                 tc_dict["system-out"] = ""
 
             return tc_dict
 
-        def parse_testsuite(xml_object):
+        def parse_testsuite(xml_object: ObjectifiedElement) -> dict[str, Any]:
             testsuite = xml_object
 
             tests = int(testsuite.attrib.get("tests", -1))
@@ -116,12 +121,12 @@ class JUnitParser:
             if hasattr(testsuite, "testsuite"):
                 for ts in testsuite.testsuite:
                     # dict from inner parse
-                    inner_testsuite = parse_testsuite(ts)
+                    inner_testsuite = parse_testsuite(cast(ObjectifiedElement, ts))
                     ts_dict["testsuite_nested"].append(inner_testsuite)
 
             elif hasattr(testsuite, "testcase"):
                 for tc in testsuite.testcase:
-                    new_testcase = parse_testcase(tc)
+                    new_testcase = parse_testcase(cast(ObjectifiedElement, tc))
                     ts_dict["testcases"].append(new_testcase)
 
             return ts_dict
@@ -132,15 +137,15 @@ class JUnitParser:
 
         if self.junit_xml_object.tag == "testsuites":
             for testsuite_xml_object in self.junit_xml_object.testsuite:
-                complete_testsuite = parse_testsuite(testsuite_xml_object)
+                complete_testsuite = parse_testsuite(cast(ObjectifiedElement, testsuite_xml_object))
                 junit_dict.append(complete_testsuite)
         else:
-            complete_testsuite = parse_testsuite(self.junit_xml_object)
+            complete_testsuite = parse_testsuite(cast(ObjectifiedElement, self.junit_xml_object))
             junit_dict.append(complete_testsuite)
 
         return junit_dict
 
-    def docutils_table(self):
+    def docutils_table(self) -> None:
         pass
 
 
