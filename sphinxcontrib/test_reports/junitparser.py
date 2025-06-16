@@ -3,15 +3,14 @@ JUnit XML parser
 """
 
 import os
+from typing import Any, Optional, cast
 
-from typing import Optional, Any, cast
 from lxml import etree, objectify
 from lxml.objectify import ObjectifiedElement
 
 
 class JUnitParser:
     def __init__(self, junit_xml: str, junit_xsd: Optional[str] = None) -> None:
-        
         self.junit_xml_path = junit_xml
 
         if junit_xsd is None:
@@ -41,7 +40,6 @@ class JUnitParser:
         return self.valid_xml
 
     def parse(self) -> list[dict[str, Any]]:
-
         """
         Creates a common python list of object, no matter what information are
         supported by the parsed xml file for test results junit().
@@ -137,10 +135,14 @@ class JUnitParser:
 
         if self.junit_xml_object.tag == "testsuites":
             for testsuite_xml_object in self.junit_xml_object.testsuite:
-                complete_testsuite = parse_testsuite(cast(ObjectifiedElement, testsuite_xml_object))
+                complete_testsuite = parse_testsuite(
+                    cast(ObjectifiedElement, testsuite_xml_object)
+                )
                 junit_dict.append(complete_testsuite)
         else:
-            complete_testsuite = parse_testsuite(cast(ObjectifiedElement, self.junit_xml_object))
+            complete_testsuite = parse_testsuite(
+                cast(ObjectifiedElement, self.junit_xml_object)
+            )
             junit_dict.append(complete_testsuite)
 
         return junit_dict
