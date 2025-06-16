@@ -99,7 +99,6 @@ exclude = [
   "^sphinxcontrib/test_reports/exceptions\\.py$",
   "^sphinxcontrib/test_reports/functions",
   "^sphinxcontrib/test_reports/jsonparser\\.py$",
-  "^sphinxcontrib/test_reports/junitparser\\.py$",
   "^sphinxcontrib/test_reports/test_reports\\.py$",
 ]
 # Disallow dynamic typing
