@@ -3,6 +3,7 @@ import pathlib
 
 from docutils import nodes
 from docutils.parsers.rst import directives
+from typing import Any, List
 
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
@@ -33,10 +34,10 @@ class TestReportDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def run(self):
+    def run(self) -> List[Any]:
         self.prepare_basic_options()
         self.load_test_file()
 
