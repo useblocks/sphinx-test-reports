@@ -28,18 +28,20 @@ from sphinxcontrib.test_reports.directives.test_suite import (
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.functions import tr_link
 
+from typing import Any, Dict, List, Optional
+
+import logging
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):
-    from sphinx.util import logging
-else:
-    import logging
+    from sphinx.util import logging as sphinx_logging
+    logging = sphinx_logging
 
 # fmt: on
 
 VERSION = "1.1.1"
 
 
-def setup(app: Sphinx):
+def setup(app: Sphinx) -> dict[str, object]:
     """
     Setup following directives:
     * test_results
@@ -135,11 +137,11 @@ def setup(app: Sphinx):
     }
 
 
-def register_tr_extra_options(app):
+def register_tr_extra_options(app: Sphinx) -> None:
     """Register extra options with directives."""
 
     log = logging.getLogger(__name__)
-    tr_extra_options = getattr(app.config, "tr_extra_options", [])
+    tr_extra_options: list[str] = getattr(app.config, "tr_extra_options", [])
     log.debug(f"tr_extra_options = {tr_extra_options}")
 
     if tr_extra_options:
@@ -152,12 +154,12 @@ def register_tr_extra_options(app):
                 )
 
 
-def tr_preparation(app, *args):
+def tr_preparation(app: Sphinx, *args: object) -> None:
     """
     Prepares needed vars in the app context.
     """
     if not hasattr(app, "tr_types"):
-        app.tr_types = {}
+        setattr(app, "tr_types", {})
 
     # Collects the configured test-report node types
     app.tr_types[app.config.tr_file[0]] = app.config.tr_file[1:]
