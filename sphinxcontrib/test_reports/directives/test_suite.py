@@ -9,6 +9,8 @@ import sphinxcontrib.test_reports.directives.test_case
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOptionError
 
+from typing import Dict, List, Optional
+
 
 class TestSuite(nodes.General, nodes.Element):
     pass
@@ -34,17 +36,17 @@ class TestSuiteDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.case_ids = []
+        self.case_ids: List[str] = []
 
-    def run(self, nested=False, count=-1):
+    def run(self, nested: bool = False, count: int = -1) -> List[object]:
         self.prepare_basic_options()
         self.load_test_file()
 
         if nested:
             # access n-th nested suite here
-            self.results = self.results[0]["testsuite_nested"]
+            self.results = self.results[0]["testsuite_nested"]  # type: ignore[index]
 
         suite_name = self.options.get("suite")
 
@@ -66,14 +68,13 @@ class TestSuiteDirective(TestCommonDirective):
                 f"Suite {suite_name} not found in test file {self.test_file}"
             )
 
-        cases = suite["tests"]
+        cases = suite["tests"] if "tests" in suite else 0
+        passed = suite["passed"] if "passed" in suite else 0
+        skipped = suite["skips"] if "skips" in suite else 0
+        errors = suite["errors"] if "errors" in suite else 0
+        failed = suite["failures"] if "failures" in suite else 0
 
-        passed = suite["passed"]
-        skipped = suite["skips"]
-        errors = suite["errors"]
-        failed = suite["failures"]
-
-        main_section = []
+        main_section: List[object] = []
         docname = self.state.document.settings.env.docname
         main_section += add_need(
             self.app,
@@ -101,26 +102,26 @@ class TestSuiteDirective(TestCommonDirective):
         # TODO double nested logic
         # nested testsuite present, if testcases are present -> reached most inner testsuite
         access_count = 0
-        if len(suite_obj["testcases"]) == 0:
-            for suite in suite_obj["testsuite_nested"]:
-                suite_id = self.test_id
+        if "testcases" in suite_obj and isinstance(suite_obj["testcases"], list) and len(suite_obj["testcases"]) == 0:
+            for nested_suite in suite_obj.get("testsuite_nested", []):
+                suite_id = (self.test_id or "")
                 suite_id += (
                     "_"
-                    + hashlib.sha1(suite["name"].encode("UTF-8"))
+                    + hashlib.sha1(nested_suite["name"].encode("UTF-8"))
                     .hexdigest()
                     .upper()[: self.app.config.tr_suite_id_length]
                 )
 
-                options = self.options
-                options["suite"] = suite["name"]
+                options = self.options.copy()
+                options["suite"] = nested_suite["name"]
                 options["id"] = suite_id
 
-                if "links" not in self.options:
-                    options["links"] = self.test_id
-                elif self.test_id not in options["links"]:
+                if "links" not in options:
+                    options["links"] = self.test_id or ""
+                elif self.test_id and self.test_id not in options["links"]:
                     options["links"] = options["links"] + ";" + self.test_id
 
-                arguments = [suite["name"]]
+                arguments = [nested_suite["name"]]
                 suite_directive = (
                     sphinxcontrib.test_reports.directives.test_suite.TestSuiteDirective(
                         self.app.config.tr_suite[0],
@@ -135,7 +136,7 @@ class TestSuiteDirective(TestCommonDirective):
                     )
                 )
 
-                is_nested = len(suite_obj["testsuites"]) > 0
+                is_nested = len(suite_obj.get("testsuites", [])) > 0
 
                 # create suite_directive for each nested suite, directive appends content in html files
                 # access_count keeps track of which nested testsuite to access in the directive
@@ -143,11 +144,11 @@ class TestSuiteDirective(TestCommonDirective):
                 access_count += 1
 
         # suite has testcases
-        if "auto_cases" in self.options.keys() and len(suite_obj["testcases"]) > 0:
+        if "auto_cases" in self.options.keys() and "testcases" in suite and isinstance(suite["testcases"], list) and len(suite["testcases"]) > 0:
             case_count = 0
 
             for case in suite["testcases"]:
-                case_id = self.test_id
+                case_id = (self.test_id or "")
                 case_id += (
                     "_"
                     + hashlib.sha1(
@@ -170,9 +171,9 @@ class TestSuiteDirective(TestCommonDirective):
                 options["classname"] = case["classname"]
                 options["id"] = case_id
 
-                if "links" not in self.options:
-                    options["links"] = self.test_id
-                elif self.test_id not in options["links"]:
+                if "links" not in options:
+                    options["links"] = self.test_id or ""
+                elif self.test_id and self.test_id not in options["links"]:
                     options["links"] = options["links"] + ";" + self.test_id
 
                 arguments = [case["name"]]
@@ -190,7 +191,7 @@ class TestSuiteDirective(TestCommonDirective):
                     )
                 )
 
-                is_nested = len(suite_obj["testsuite_nested"]) > 0 or nested
+                is_nested = ("testsuite_nested" in suite_obj and isinstance(suite_obj["testsuite_nested"], list) and len(suite_obj["testsuite_nested"]) > 0) or nested
 
                 # depending if nested or not, runs case directive to add content to testcases
                 # count is for correct suite access, if multiple present, case_count is for correct case access
