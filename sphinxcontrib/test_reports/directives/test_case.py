@@ -7,6 +7,8 @@ from sphinxcontrib.test_reports.config import DEFAULT_OPTIONS
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOptionError
 
+from typing import Dict, List, Optional, Match
+
 
 class TestCase(nodes.General, nodes.Element):
     pass
@@ -34,16 +36,17 @@ class TestCaseDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
 
-    def run(self, nested=False, suite_count=-1, case_count=-1):
+    def run(self, nested: bool = False, suite_count: int = -1, case_count: int = -1) -> List[object]:
         self.prepare_basic_options()
         self.load_test_file()
 
         if nested and suite_count >= 0:
             # access n-th nested suite here
-            self.results = self.results[0]["testsuites"][suite_count]
+            if self.results and isinstance(self.results, list) and len(self.results) > 0:
+                self.results = self.results[0]["testsuites"][suite_count]  # type: ignore[index]
 
         suite_name = self.options.get("suite")
 
@@ -73,7 +76,7 @@ class TestCaseDirective(TestCommonDirective):
         case = None
 
         for case_obj in suite["testcases"]:
-            if case_obj["name"] == case_full_name and class_name is None:  # noqa: SIM114  # noqa: W503
+            if case_obj["name"] == case_full_name and class_name is None:
                 case = case_obj
                 break
 
@@ -100,8 +103,8 @@ class TestCaseDirective(TestCommonDirective):
             )
 
         result = case["result"]
-        content = self.test_content
-        if case["text"] is not None and len(case["text"]) > 0:
+        content = self.test_content or ""
+        if case.get("text") is not None and isinstance(case["text"], str) and len(case["text"]) > 0:
             content += """
 
 **Text**::
@@ -110,7 +113,7 @@ class TestCaseDirective(TestCommonDirective):
 
 """.format("\n   ".join([x.lstrip() for x in case["text"].split("\n")]))
 
-        if case["message"] is not None and len(case["message"]) > 0:
+        if case.get("message") is not None and isinstance(case["message"], str) and len(case["message"]) > 0:
             content += """
 
 **Message**::
@@ -119,7 +122,7 @@ class TestCaseDirective(TestCommonDirective):
 
 """.format("\n   ".join([x.lstrip() for x in case["message"].split("\n")]))
 
-        if case["system-out"] is not None and len(case["system-out"]) > 0:
+        if case.get("system-out") is not None and isinstance(case["system-out"], str) and len(case["system-out"]) > 0:
             content += """
 
 **System-out**::
@@ -129,15 +132,15 @@ class TestCaseDirective(TestCommonDirective):
 """.format("\n   ".join([x.lstrip() for x in case["system-out"].split("\n")]))
 
         time = case["time"]
-        style = "tr_" + case["result"]
+        style = "tr_" + str(case["result"])
 
         import re
 
-        groups = re.match(r"^(?P<name>[^\[]+)($|\[(?P<param>.*)?\])", case["name"])
-        try:
+        groups: Optional[Match[str]] = re.match(r"^(?P<name>[^\[]+)($|\[(?P<param>.*)?\])", case["name"])
+        if groups is not None:
             case_name = groups["name"]
             case_parameter = groups["param"]
-        except TypeError:
+        else:
             case_name = case_full_name
             case_parameter = ""
 
@@ -151,14 +154,15 @@ class TestCaseDirective(TestCommonDirective):
             elif key == "status" and value not in ["", None]:
                 self.test_status = str(value)
             elif key == "tags":
-                self.test_tags = ",".join([self.test_tags, str(value)])
+                self.test_tags = ",".join([self.test_tags or "", str(value)])
             elif key not in DEFAULT_OPTIONS and value not in ["", None]:
                 # May overwrite globally set values
-                self.extra_options[key] = str(value)
+                if self.extra_options is not None:
+                    self.extra_options[key] = str(value)
 
         docname = self.state.document.settings.env.docname
 
-        main_section = []
+        main_section: List[object] = []
         # Merge all options including extra ones
         main_section += add_need(
             self.app,
