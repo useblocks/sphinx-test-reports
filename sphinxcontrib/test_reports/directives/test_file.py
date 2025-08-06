@@ -9,6 +9,8 @@ import sphinxcontrib.test_reports.directives.test_suite
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfigurationError
 
+from typing import Dict, List, Optional, Any
+
 
 class TestFile(nodes.General, nodes.Element):
     pass
@@ -35,35 +37,34 @@ class TestFileDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.suite_ids = {}
+        self.suite_ids: Dict[str, str] = {}
 
-    def run(self):
+    def run(self) -> List[object]:
         self.prepare_basic_options()
-        results = self.load_test_file()
+        results: Optional[List[Dict[str, object]]] = self.load_test_file()
 
         # Error handling, if file not found
         if results is None:
-            main_section = []
+            main_section: List[object] = []
             content = nodes.error()
             para = nodes.paragraph()
             text_string = f"Test file not found: {self.test_file}"
-            text = nodes.Text(text_string, text_string)
+            text = nodes.Text(text_string)
             para += text
             content.append(para)
             main_section.append(content)
             return main_section
 
-        suites = len(self.results)
-        cases = sum(int(x["tests"]) for x in self.results)
+        suites = len(self.results) if self.results is not None else 0
+        cases = sum(int(x["tests"]) for x in self.results) if self.results is not None else 0
+        passed = sum(x["passed"] for x in self.results) if self.results is not None else 0
+        skipped = sum(x["skips"] for x in self.results) if self.results is not None else 0
+        errors = sum(x["errors"] for x in self.results) if self.results is not None else 0
+        failed = sum(x["failures"] for x in self.results) if self.results is not None else 0
 
-        passed = sum(x["passed"] for x in self.results)
-        skipped = sum(x["skips"] for x in self.results)
-        errors = sum(x["errors"] for x in self.results)
-        failed = sum(x["failures"] for x in self.results)
-
-        main_section = []
+        main_section: List[object] = []
         docname = self.state.document.settings.env.docname
         main_section += add_need(
             self.app,
@@ -97,9 +98,9 @@ class TestFileDirective(TestCommonDirective):
                 "auto_suites for test-file directives."
             )
 
-        if "auto_suites" in self.options.keys():
+        if "auto_suites" in self.options.keys() and self.results is not None:
             for suite in self.results:
-                suite_id = self.test_id
+                suite_id = self.test_id or ""
                 suite_id += (
                     "_"
                     + hashlib.sha1(suite["name"].encode("UTF-8"))
@@ -114,13 +115,13 @@ class TestFileDirective(TestCommonDirective):
                         f"Suite ID {suite_id} already exists by {self.suite_ids[suite_id]} ({suite['name']})"
                     )
 
-                options = self.options
+                options = self.options.copy()
                 options["suite"] = suite["name"]
                 options["id"] = suite_id
 
-                if "links" not in self.options:
-                    options["links"] = self.test_id
-                elif self.test_id not in options["links"]:
+                if "links" not in options:
+                    options["links"] = self.test_id or ""
+                elif self.test_id and self.test_id not in options["links"]:
                     options["links"] = options["links"] + ";" + self.test_id
 
                 arguments = [suite["name"]]
