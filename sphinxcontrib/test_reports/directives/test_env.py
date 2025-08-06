@@ -6,6 +6,7 @@ import sphinx
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from packaging.version import Version
+from typing import Any, List, Optional, Tuple
 
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):
@@ -37,14 +38,14 @@ class EnvReportDirective(Directive):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.data_option = self.options.get("data")
-        self.environments = self.options.get("env")
+        self.data_option: Optional[str] = self.options.get("data")
+        self.environments: Optional[str] = self.options.get("env")
 
         if self.environments is not None:
-            self.req_env_list_cpy = self.environments.split(",")
-            self.req_env_list = []
+            self.req_env_list_cpy: List[str] = self.environments.split(",")
+            self.req_env_list: Optional[List[str]] = []
             for element in self.req_env_list_cpy:
                 if len(element) != 0:
                     self.req_env_list.append(element.lstrip().rstrip())
@@ -52,18 +53,18 @@ class EnvReportDirective(Directive):
             self.req_env_list = None
 
         if self.data_option is not None:
-            self.data_option_list_cpy = self.data_option.split(",")
-            self.data_option_list = []
+            self.data_option_list_cpy: List[str] = self.data_option.split(",")
+            self.data_option_list: Optional[List[str]] = []
             for element in self.data_option_list_cpy:
                 if len(element) != 0:
                     self.data_option_list.append(element.rstrip().lstrip())
         else:
             self.data_option_list = None
 
-        self.header = ("Variable", "Data")
-        self.colwidths = (1, 1)
+        self.header: Tuple[str, str] = ("Variable", "Data")
+        self.colwidths: Tuple[int, int] = (1, 1)
 
-    def run(self):
+    def run(self) -> List[Any]:
         env = self.state.document.settings.env
 
         json_path = self.arguments[0]
@@ -95,7 +96,7 @@ class EnvReportDirective(Directive):
             del not_present_env
 
         # Construction idea taken from http://agateau.com/2015/docutils-snippets/
-        main_section = []
+        main_section: List[Any] = []
 
         if self.req_env_list is None and "raw" not in self.options:
             for enviro in results:
@@ -162,8 +163,8 @@ class EnvReportDirective(Directive):
 
         return main_section
 
-    def _crete_table_b(self, enviro, results):
-        main_section = []
+    def _crete_table_b(self, enviro: str, results: Any) -> List[Any]:
+        main_section: List[Any] = []
         section = nodes.section()
         section += nodes.title(text=enviro)
 
@@ -203,7 +204,7 @@ class EnvReportDirective(Directive):
 
         return main_section
 
-    def _create_rows(self, row_cells):
+    def _create_rows(self, row_cells: Any) -> Any:
         row = nodes.row()
         for cell in row_cells:
             entry = nodes.entry()
@@ -218,13 +219,13 @@ class EnvReportDirective(Directive):
         return row
 
 
-class InvalidJsonFile(BaseException):
+class InvalidJsonFile(Exception):
     pass
 
 
-class JsonFileNotFound(BaseException):
+class JsonFileNotFound(Exception):
     pass
 
 
-class InvalidEnvRequested(BaseException):
+class InvalidEnvRequested(Exception):
     pass
