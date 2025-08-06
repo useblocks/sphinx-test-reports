@@ -1,4 +1,5 @@
 import os
+from typing import TYPE_CHECKING, Optional, Any, List
 
 import sphinx
 from packaging.version import Version
@@ -15,7 +16,7 @@ if Version(sphinx_version) >= Version("1.6"):
 STATICS_DIR_NAME = "_static"
 
 
-def safe_add_file(filename, app):
+def safe_add_file(filename: str, app: Any) -> None:
     """
     Adds files to builder resources only, if the given filename was not already registered.
     Needed mainly for tests to avoid multiple registration of the same file and therefore also multiple execution
@@ -25,8 +26,8 @@ def safe_add_file(filename, app):
     :param app: app object
     :return: None
     """
-    data_file = filename
-    static_data_file = os.path.join("_static", data_file)
+    data_file: str = filename
+    static_data_file: str = os.path.join("_static", data_file)
 
     if data_file.split(".")[-1] == "js":
         if (
@@ -46,7 +47,7 @@ def safe_add_file(filename, app):
         )
 
 
-def safe_remove_file(filename, app):
+def safe_remove_file(filename: str, app: Any) -> None:
     """
     Removes a given resource file from builder resources.
     Needed mostly during test, if multiple sphinx-build are started.
@@ -56,8 +57,8 @@ def safe_remove_file(filename, app):
     :param app: app object
     :return: None
     """
-    data_file = filename
-    static_data_file = os.path.join("_static", data_file)
+    data_file: str = filename
+    static_data_file: str = os.path.join("_static", data_file)
 
     if data_file.split(".")[-1] == "js":
         if (
@@ -73,11 +74,11 @@ def safe_remove_file(filename, app):
 
 # Base implementation from sphinxcontrib-images
 # https://github.com/spinus/sphinxcontrib-images/blob/master/sphinxcontrib/images.py#L203
-def install_styles_static_files(app, env):
-    statics_dir_path = os.path.join(app.builder.outdir, STATICS_DIR_NAME)
-    dest_path = os.path.join(statics_dir_path, "sphinx-test-results")
+def install_styles_static_files(app: Any, env: Any) -> None:
+    statics_dir_path: str = os.path.join(app.builder.outdir, STATICS_DIR_NAME)
+    dest_path: str = os.path.join(statics_dir_path, "sphinx-test-results")
 
-    files_to_copy = ["common.css"]
+    files_to_copy: List[str] = ["common.css"]
 
     # Be sure no "old" css layout is already set
     safe_remove_file("sphinx-test-reports/common.css", app)
@@ -103,7 +104,7 @@ def install_styles_static_files(app, env):
             )
             print(f"{source_file_path} not found. Copying sphinx-internal blank.css")
 
-        dest_file_path = os.path.join(dest_path, os.path.basename(source_file_path))
+        dest_file_path: str = os.path.join(dest_path, os.path.basename(source_file_path))
 
         if not os.path.exists(os.path.dirname(dest_file_path)):
             ensuredir(os.path.dirname(dest_file_path))
