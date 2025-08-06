@@ -6,6 +6,7 @@ A Common directive, from which all other test directives inherit the shared func
 import os
 import pathlib
 from importlib.metadata import version
+from typing import Any, Dict, Optional
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
@@ -34,40 +35,40 @@ class TestCommonDirective(Directive):
     Common directive, which provides some shared functions to "real" directives.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.env = self.state.document.settings.env
-        self.app = self.env.app
+        self.env: Any = self.state.document.settings.env
+        self.app: Any = self.env.app
         if not hasattr(self.app, "testreport_data"):
-            self.app.testreport_data = {}
+            self.app.testreport_data: Dict[str, Any] = {}
 
-        self.test_file = None
-        self.results = None
-        self.docname = None
-        self.test_name = None
-        self.test_id = None
-        self.test_content = None
-        self.test_file_given = None
-        self.test_links = None
-        self.test_tags = None
-        self.test_status = None
-        self.collapse = None
-        self.need_type = None
-        self.extra_options = None
+        self.test_file: Optional[str] = None
+        self.results: Optional[Any] = None
+        self.docname: Optional[str] = None
+        self.test_name: Optional[str] = None
+        self.test_id: Optional[str] = None
+        self.test_content: Optional[str] = None
+        self.test_file_given: Optional[str] = None
+        self.test_links: Optional[str] = None
+        self.test_tags: Optional[str] = None
+        self.test_status: Optional[str] = None
+        self.collapse: Optional[Any] = None
+        self.need_type: Optional[str] = None
+        self.extra_options: Optional[Dict[str, Any]] = None
 
         self.log = logging.getLogger(__name__)
 
-    def collect_extra_options(self):
+    def collect_extra_options(self) -> None:
         """Collect any extra options and their values that were specified in the directive"""
         tr_extra_options = getattr(self.app.config, "tr_extra_options", [])
-        self.extra_options = {}
+        self.extra_options: Dict[str, Any] = {}
 
         if tr_extra_options:
             for option_name in tr_extra_options:
                 if option_name in self.options:
                     self.extra_options[option_name] = self.options[option_name]
 
-    def load_test_file(self):
+    def load_test_file(self) -> Optional[Any]:
         """
         Loads the defined test_file under self.test_file.
 
@@ -101,7 +102,7 @@ class TestCommonDirective(Directive):
         self.results = self.app.testreport_data[self.test_file]
         return self.results
 
-    def prepare_basic_options(self):
+    def prepare_basic_options(self) -> None:
         """
         Reads and checks the needed basic data like name, id, links, status, ...
         :return: None
