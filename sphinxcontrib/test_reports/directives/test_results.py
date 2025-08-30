@@ -11,6 +11,8 @@ from sphinx.environment import BuildEnvironment
 TestcaseDict = Dict[str, Union[str, int, float]]
 TestsuiteDict = Dict[str, Union[str, int, float, List[TestcaseDict], List["TestsuiteDict"]]]
 
+class TestResults(nodes.General, nodes.Element):
+    pass
 
 class TestResultsDirective(Directive):
     """
