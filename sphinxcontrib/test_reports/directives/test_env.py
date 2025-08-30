@@ -1,21 +1,43 @@
+from __future__ import annotations
+
 import copy
 import json
 import os
+from typing import List, Optional, Tuple, Dict, Iterable, Protocol, cast
 
 import sphinx
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from packaging.version import Version
+from sphinx.environment import BuildEnvironment
+
+# ---------- Typing ----------
+
+class LoggerProtocol(Protocol):
+    def debug(self, msg: str) -> object: ...
+    def info(self, msg: str) -> object: ...
+    def warning(self, msg: str) -> object: ...
+    def error(self, msg: str) -> object: ...
+
+class _AppConfigProtocol(Protocol):
+    tr_rootdir: str
+
+class _AppProtocol(Protocol):
+    config: _AppConfigProtocol
+
+# ---------- Logger ----------
 
 sphinx_version = sphinx.__version__
+logger: LoggerProtocol
 if Version(sphinx_version) >= Version("1.6"):
-    from sphinx.util import logging
+    from sphinx.util import logging as sphinx_logging
+    logger = cast(LoggerProtocol, sphinx_logging.getLogger(__name__))
 else:
-    import logging
+    import logging as std_logging
+    std_logging.basicConfig()
+    logger = cast(LoggerProtocol, std_logging.getLogger(__name__))
 
-    logging.basicConfig()
-logger = logging.getLogger(__name__)
-
+# ---------- Nodes & Directive ----------
 
 class EnvReport(nodes.General, nodes.Element):
     pass
@@ -37,37 +59,43 @@ class EnvReportDirective(Directive):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data_option = self.options.get("data")
-        self.environments = self.options.get("env")
+    header: Tuple[str, str] = ("Variable", "Data")
+    colwidths: Tuple[int, int] = (1, 1)
 
-        if self.environments is not None:
-            self.req_env_list_cpy = self.environments.split(",")
+    # Initialized in run()
+    req_env_list: Optional[List[str]]
+    data_option_list: Optional[List[str]]
+
+    def run(self) -> List[nodes.Node]:
+        # Prepare options
+        data_option = cast(Optional[str], self.options.get("data"))
+        environments = cast(Optional[str], self.options.get("env"))
+
+        if environments is not None:
+            req_env_list_cpy: List[str] = environments.split(",")
             self.req_env_list = []
-            for element in self.req_env_list_cpy:
+            for element in req_env_list_cpy:
                 if len(element) != 0:
                     self.req_env_list.append(element.lstrip().rstrip())
         else:
             self.req_env_list = None
 
-        if self.data_option is not None:
-            self.data_option_list_cpy = self.data_option.split(",")
+        if data_option is not None:
+            data_option_list_cpy: List[str] = data_option.split(",")
             self.data_option_list = []
-            for element in self.data_option_list_cpy:
+            for element in data_option_list_cpy:
                 if len(element) != 0:
                     self.data_option_list.append(element.rstrip().lstrip())
         else:
             self.data_option_list = None
 
-        self.header = ("Variable", "Data")
-        self.colwidths = (1, 1)
-
-    def run(self):
-        env = self.state.document.settings.env
+        env = cast(BuildEnvironment, self.state.document.settings.env)
 
         json_path = self.arguments[0]
-        root_path = env.app.config.tr_rootdir
+        app_typed: _AppProtocol = cast(_AppProtocol, env.app)
+        cfg: _AppConfigProtocol = app_typed.config
+        root_path = cfg.tr_rootdir  # str
+
         if not os.path.isabs(json_path):
             json_path = os.path.join(root_path, json_path)
 
@@ -76,7 +104,7 @@ class EnvReportDirective(Directive):
 
         with open(json_path) as fp_json:
             try:
-                results = json.load(fp_json)
+                results: Dict[str, Dict[str, object]] = json.load(fp_json)
             except ValueError as exc:
                 raise InvalidJsonFile(
                     "The given file {} is not a valid JSON".format(
@@ -95,7 +123,7 @@ class EnvReportDirective(Directive):
             del not_present_env
 
         # Construction idea taken from http://agateau.com/2015/docutils-snippets/
-        main_section = []
+        main_section: List[nodes.Node] = []
 
         if self.req_env_list is None and "raw" not in self.options:
             for enviro in results:
@@ -129,7 +157,7 @@ class EnvReportDirective(Directive):
                 code_block = nodes.literal_block(results_string, results_string)
                 code_block["language"] = "json"
                 section += code_block  # nodes.literal_block(results, results)
-                main_section += section  # nodes.literal_block(enviro, results[enviro])
+                main_section.append(section)  # nodes.literal_block(enviro, results[enviro])
                 del temp_dict2
 
         elif "raw" in self.options and self.req_env_list is not None:
@@ -143,7 +171,7 @@ class EnvReportDirective(Directive):
                             del temp_dict2[enviro][opt]
 
                 # option check
-                for opt in self.data_option_list:
+                for opt in self.data_option_list or []:
                     if opt not in temp_dict2[enviro]:
                         logger.warning(
                             f"option '{opt}' is not present in '{enviro}' environment file"
@@ -157,13 +185,13 @@ class EnvReportDirective(Directive):
                 code_block = nodes.literal_block(results_string, results_string)
                 code_block["language"] = "json"
                 section += code_block
-                main_section += section
+                main_section.append(section)
                 del temp_dict2
 
         return main_section
 
-    def _crete_table_b(self, enviro, results):
-        main_section = []
+    def _crete_table_b(self, enviro: str, results: Dict[str, Dict[str, object]]) -> List[nodes.Node]:
+        main_section: List[nodes.Node] = []
         section = nodes.section()
         section += nodes.title(text=enviro)
 
@@ -203,7 +231,7 @@ class EnvReportDirective(Directive):
 
         return main_section
 
-    def _create_rows(self, row_cells):
+    def _create_rows(self, row_cells: Iterable[object]) -> nodes.row:
         row = nodes.row()
         for cell in row_cells:
             entry = nodes.entry()
@@ -214,17 +242,17 @@ class EnvReportDirective(Directive):
                 code_block["language"] = "json"
                 entry += code_block
             else:
-                entry += nodes.paragraph(text=cell)
+                entry += nodes.paragraph(text=cast(str, cell))
         return row
 
 
-class InvalidJsonFile(BaseException):
+class InvalidJsonFile(Exception):
     pass
 
 
-class JsonFileNotFound(BaseException):
+class JsonFileNotFound(Exception):
     pass
 
 
-class InvalidEnvRequested(BaseException):
+class InvalidEnvRequested(Exception):
     pass

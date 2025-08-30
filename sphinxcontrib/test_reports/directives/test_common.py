@@ -6,6 +6,7 @@ A Common directive, from which all other test directives inherit the shared func
 import os
 import pathlib
 from importlib.metadata import version
+from typing import Any, Dict, Optional, List, Tuple, Mapping, MutableMapping, Union, Protocol, cast
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
@@ -15,7 +16,7 @@ from sphinxcontrib.test_reports.exceptions import (
     SphinxError,
     TestReportFileNotSetError,
 )
-from sphinxcontrib.test_reports.jsonparser import JsonParser
+from sphinxcontrib.test_reports.jsonparser import JsonParser, MappingEntry
 from sphinxcontrib.test_reports.junitparser import JUnitParser
 
 sn_major_version = int(version("sphinx-needs").split('.')[0])
@@ -29,45 +30,68 @@ else:
 # fmt: on
 
 
+class _SphinxConfigProtocol(Protocol):
+    tr_rootdir: str
+    tr_json_mapping: Mapping[str, "MappingEntry"]  # Provided by user config
+    needs_collapse_details: bool
+
+
+class _SphinxAppProtocol(Protocol):
+    config: _SphinxConfigProtocol
+    tr_types: Mapping[str, Tuple[str, str]]
+    testreport_data: MutableMapping[str, List[Dict[str, object]]]
+
+
+class _SphinxEnvProtocol(Protocol):
+    app: _SphinxAppProtocol
+    docname: str
+
+
+# Re-export type name for readability in this file
+MappingEntryType = MappingEntry
+
+
 class TestCommonDirective(Directive):
     """
     Common directive, which provides some shared functions to "real" directives.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.env = self.state.document.settings.env
-        self.app = self.env.app
+        self.env: _SphinxEnvProtocol = cast(_SphinxEnvProtocol, self.state.document.settings.env)
+        self.app: _SphinxAppProtocol = self.env.app
         if not hasattr(self.app, "testreport_data"):
-            self.app.testreport_data = {}
+            empty_store: Dict[str, List[Dict[str, object]]] = {}
+            setattr(self.app, "testreport_data", empty_store)
 
-        self.test_file = None
-        self.results = None
-        self.docname = None
-        self.test_name = None
-        self.test_id = None
-        self.test_content = None
-        self.test_file_given = None
-        self.test_links = None
-        self.test_tags = None
-        self.test_status = None
-        self.collapse = None
-        self.need_type = None
-        self.extra_options = None
+        self.test_file: Optional[str] = None
+        self.results: Optional[List[Dict[str, object]]] = None
+        self.docname: Optional[str] = None
+        self.test_name: Optional[str] = None
+        self.test_id: Optional[str] = None
+        self.test_content: Optional[str] = None
+        self.test_file_given: Optional[str] = None
+        self.test_links: Optional[str] = None
+        self.test_tags: Optional[str] = None
+        self.test_status: Optional[str] = None
+        self.collapse: bool = True
+        self.need_type: Optional[str] = None
+        self.extra_options: Optional[Dict[str, object]] = None
 
         self.log = logging.getLogger(__name__)
 
-    def collect_extra_options(self):
+    def collect_extra_options(self) -> None:
         """Collect any extra options and their values that were specified in the directive"""
-        tr_extra_options = getattr(self.app.config, "tr_extra_options", [])
-        self.extra_options = {}
+        tr_extra_options = cast(Optional[List[str]], getattr(self.app.config, "tr_extra_options", None))
+        extra: Dict[str, object] = {}
 
         if tr_extra_options:
             for option_name in tr_extra_options:
                 if option_name in self.options:
-                    self.extra_options[option_name] = self.options[option_name]
+                    extra[option_name] = self.options[option_name]
+        self.extra_options = extra
 
-    def load_test_file(self):
+    def load_test_file(self) -> Optional[List[Dict[str, object]]]:
         """
         Loads the defined test_file under self.test_file.
 
@@ -90,68 +114,80 @@ class TestCommonDirective(Directive):
             )
             return None
 
-        if self.test_file not in self.app.testreport_data.keys():
+        testreport_data = self.app.testreport_data
+        if self.test_file not in testreport_data.keys():
+            parser: Union[JsonParser, JUnitParser]
             if os.path.splitext(self.test_file)[1] == ".json":
-                mapping = list(self.app.config.tr_json_mapping.values())[0]
+                json_mapping_all = self.app.config.tr_json_mapping
+                mapping_values = list(json_mapping_all.values())
+                mapping: MappingEntryType = mapping_values[0] if mapping_values else {"testcase": {}, "testsuite": {}}
                 parser = JsonParser(self.test_file, json_mapping=mapping)
             else:
                 parser = JUnitParser(self.test_file)
-            self.app.testreport_data[self.test_file] = parser.parse()
+            testreport_data[self.test_file] = parser.parse()
 
-        self.results = self.app.testreport_data[self.test_file]
+        self.results = testreport_data[self.test_file]
         return self.results
 
-    def prepare_basic_options(self):
+    def prepare_basic_options(self) -> None:
         """
         Reads and checks the needed basic data like name, id, links, status, ...
         :return: None
         """
-        self.docname = self.state.document.settings.env.docname
+        self.docname = cast(str, self.state.document.settings.env.docname)
 
         self.test_name = self.arguments[0]
         self.test_content = "\n".join(self.content)
         if self.name != "test-report":
             self.need_type = self.app.tr_types[self.name][0]
             if sn_major_version >= 4:
-                hashed_id = _make_hashed_id(
-                    self.need_type,
-                    self.test_name,
-                    self.test_content,
-                    NeedsSphinxConfig(self.app.config),
+                hashed_id = cast(
+                    str,
+                    _make_hashed_id(
+                        self.need_type,
+                        self.test_name,
+                        self.test_content,
+                        NeedsSphinxConfig(self.app.config),
+                    ),
                 )
             else:  # Sphinx-Needs < 4
-                hashed_id = make_hashed_id(
-                    self.app, self.need_type, self.test_name, self.test_content
+                hashed_id = cast(
+                    str,
+                    make_hashed_id(
+                        self.app, self.need_type, self.test_name, self.test_content
+                    ),
                 )
 
-            self.test_id = self.options.get(
-                "id",
-                hashed_id,
-            )
+            opt_id = self.options.get("id")
+            self.test_id = str(opt_id) if opt_id is not None else hashed_id
         else:
-            self.test_id = self.options.get("id")
+            opt_id = self.options.get("id")
+            self.test_id = str(opt_id) if opt_id is not None else None
 
         if self.test_id is None:
             raise SphinxError("ID must be set for test-report.")
 
-        self.test_file = self.options.get("file")
-        self.test_file_given = self.test_file[:]
+        self.test_file = cast(Optional[str], self.options.get("file"))
+        self.test_file_given = str(self.test_file) if self.test_file is not None else None
 
-        self.test_links = self.options.get("links", "")
-        self.test_tags = self.options.get("tags", "")
-        self.test_status = self.options.get("status")
+        self.test_links = cast(str, self.options.get("links", ""))
+        self.test_tags = cast(str, self.options.get("tags", ""))
+        self.test_status = cast(Optional[str], self.options.get("status"))
 
-        self.collapse = str(self.options.get("collapse", ""))
+        collapse_raw: object = self.options.get("collapse", "")
 
-        if isinstance(self.collapse, str) and len(self.collapse) > 0:
-            if self.collapse.upper() in ["TRUE", 1, "YES"]:
+        if isinstance(collapse_raw, str) and len(collapse_raw) > 0:
+            value = collapse_raw.strip().upper()
+            if value in ("TRUE", "YES", "1"):
                 self.collapse = True
-            elif self.collapse.upper() in ["FALSE", 0, "NO"]:
+            elif value in ("FALSE", "NO", "0"):
                 self.collapse = False
             else:
                 raise Exception("collapse attribute must be true or false")
+        elif isinstance(collapse_raw, bool):
+            self.collapse = collapse_raw
         else:
-            self.collapse = getattr(self.app.config, "needs_collapse_details", True)
+            self.collapse = bool(self.app.config.needs_collapse_details)
 
         # Also collect any extra options while we're at it
         self.collect_extra_options()

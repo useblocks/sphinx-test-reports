@@ -9,6 +9,8 @@ import sphinxcontrib.test_reports.directives.test_suite
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfigurationError
 
+from typing import Dict, List, Optional, cast
+
 
 class TestFile(nodes.General, nodes.Element):
     pass
@@ -35,37 +37,51 @@ class TestFileDirective(TestCommonDirective):
 
     final_argument_whitespace = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.suite_ids = {}
+        self.suite_ids: Dict[str, str] = {}
 
-    def run(self):
+    def run(self) -> List[nodes.Element]:
         self.prepare_basic_options()
-        results = self.load_test_file()
+        results: Optional[List[Dict[str, object]]] = self.load_test_file()
 
         # Error handling, if file not found
         if results is None:
-            main_section = []
+            main_section: List[nodes.Element] = []
             content = nodes.error()
             para = nodes.paragraph()
             text_string = f"Test file not found: {self.test_file}"
-            text = nodes.Text(text_string, text_string)
+            text = nodes.Text(text_string)
             para += text
             content.append(para)
             main_section.append(content)
             return main_section
 
-        suites = len(self.results)
-        cases = sum(int(x["tests"]) for x in self.results)
+        def as_int(val: object) -> int:
+            if isinstance(val, bool):
+                return int(val)
+            if isinstance(val, int):
+                return val
+            if isinstance(val, float):
+                return int(val)
+            if isinstance(val, str):
+                try:
+                    return int(val)
+                except ValueError:
+                    return 0
+            return 0
 
-        passed = sum(x["passed"] for x in self.results)
-        skipped = sum(x["skips"] for x in self.results)
-        errors = sum(x["errors"] for x in self.results)
-        failed = sum(x["failures"] for x in self.results)
+        results_list = cast(List[Dict[str, object]], results)
+        suites = len(results_list)
+        cases = sum(as_int(x.get("tests", 0)) for x in results_list)
+        passed = sum(as_int(x.get("passed", 0)) for x in results_list)
+        skipped = sum(as_int(x.get("skips", 0)) for x in results_list)
+        errors = sum(as_int(x.get("errors", 0)) for x in results_list)
+        failed = sum(as_int(x.get("failures", 0)) for x in results_list)
 
-        main_section = []
-        docname = self.state.document.settings.env.docname
-        main_section += add_need(
+        main_section = []  # type: List[nodes.Element]
+        docname = cast(str, self.state.document.settings.env.docname)
+        main_section += cast(List[nodes.Element], add_need(
             self.app,
             self.state,
             docname,
@@ -85,8 +101,8 @@ class TestFileDirective(TestCommonDirective):
             skipped=skipped,
             failed=failed,
             errors=errors,
-            **self.extra_options,
-        )
+            **(self.extra_options or {}),
+        ))
 
         if (
             "auto_cases" in self.options.keys()
@@ -97,36 +113,37 @@ class TestFileDirective(TestCommonDirective):
                 "auto_suites for test-file directives."
             )
 
-        if "auto_suites" in self.options.keys():
-            for suite in self.results:
-                suite_id = self.test_id
+        if "auto_suites" in self.options.keys() and results_list is not None:
+            for suite in results_list:
+                suite_name = str(suite.get("name", ""))
+                suite_id = self.test_id or ""
                 suite_id += (
                     "_"
-                    + hashlib.sha1(suite["name"].encode("UTF-8"))
+                    + hashlib.sha1(suite_name.encode("UTF-8"))
                     .hexdigest()
-                    .upper()[: self.app.config.tr_suite_id_length]
+                    .upper()[: cast(int, self.app.config.tr_suite_id_length)]
                 )
 
                 if suite_id not in self.suite_ids:
-                    self.suite_ids[suite_id] = suite["name"]
+                    self.suite_ids[suite_id] = suite_name
                 else:
                     raise Exception(
-                        f"Suite ID {suite_id} already exists by {self.suite_ids[suite_id]} ({suite['name']})"
+                        f"Suite ID {suite_id} already exists by {self.suite_ids[suite_id]} ({suite_name})"
                     )
 
-                options = self.options
-                options["suite"] = suite["name"]
+                options = self.options.copy()
+                options["suite"] = suite_name
                 options["id"] = suite_id
 
-                if "links" not in self.options:
-                    options["links"] = self.test_id
-                elif self.test_id not in options["links"]:
+                if "links" not in options:
+                    options["links"] = self.test_id or ""
+                elif self.test_id and self.test_id not in options["links"]:
                     options["links"] = options["links"] + ";" + self.test_id
 
-                arguments = [suite["name"]]
+                arguments = [suite_name]
                 suite_directive = (
                     sphinxcontrib.test_reports.directives.test_suite.TestSuiteDirective(
-                        self.app.config.tr_suite[0],
+                        cast(List[str], self.app.config.tr_suite)[0],
                         arguments,
                         options,
                         "",
@@ -138,7 +155,7 @@ class TestFileDirective(TestCommonDirective):
                     )
                 )
 
-                main_section += suite_directive.run()
+                main_section += cast(List[nodes.Element], suite_directive.run())
 
         add_doc(self.env, docname)
 
