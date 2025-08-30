@@ -28,13 +28,22 @@ from sphinxcontrib.test_reports.directives.test_suite import (
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.functions import tr_link
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol, cast
 
-import logging
+class LoggerProtocol(Protocol):
+    def debug(self, msg: str) -> object: ...
+    def info(self, msg: str) -> object: ...
+    def warning(self, msg: str) -> object: ...
+    def error(self, msg: str) -> object: ...
+
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):
     from sphinx.util import logging as sphinx_logging
-    logging = sphinx_logging
+    logger: LoggerProtocol = cast(LoggerProtocol, sphinx_logging.getLogger(__name__))
+else:
+    import logging as std_logging
+    std_logging.basicConfig()
+    logger: LoggerProtocol = cast(LoggerProtocol, std_logging.getLogger(__name__))
 
 # fmt: on
 
@@ -49,24 +58,24 @@ def setup(app: Sphinx) -> dict[str, object]:
     * test_report
     """
 
-    log = logging.getLogger(__name__)
+    log = logger
     log.info("Setting up sphinx-test-reports extension")
 
     # configurations
-    app.add_config_value("tr_rootdir", app.confdir, "html")
+    app.add_config_value("tr_rootdir", cast(str, app.confdir), "html")
     app.add_config_value(
         "tr_file",
-        ["test-file", "testfile", "Test-File", "TF_", "#ffffff", "node"],
+        cast(List[str], ["test-file", "testfile", "Test-File", "TF_", "#ffffff", "node"]),
         "html",
     )
     app.add_config_value(
         "tr_suite",
-        ["test-suite", "testsuite", "Test-Suite", "TS_", "#cccccc", "folder"],
+        cast(List[str], ["test-suite", "testsuite", "Test-Suite", "TS_", "#cccccc", "folder"]),
         "html",
     )
     app.add_config_value(
         "tr_case",
-        ["test-case", "testcase", "Test-Case", "TC_", "#999999", "rectangle"],
+        cast(List[str], ["test-case", "testcase", "Test-Case", "TC_", "#999999", "rectangle"]),
         "html",
     )
 
@@ -79,7 +88,7 @@ def setup(app: Sphinx) -> dict[str, object]:
     app.add_config_value("tr_suite_id_length", 3, "html")
     app.add_config_value("tr_case_id_length", 5, "html")
     app.add_config_value("tr_import_encoding", "utf8", "html")
-    app.add_config_value("tr_extra_options", [], "env")
+    app.add_config_value("tr_extra_options", cast(List[str], []), "env")
 
     json_mapping = {
         "json_config": {
@@ -111,24 +120,24 @@ def setup(app: Sphinx) -> dict[str, object]:
     app.add_config_value("tr_json_mapping", json_mapping, "html", types=[dict])
 
     # nodes
-    app.add_node(TestResults)
-    app.add_node(TestFile)
-    app.add_node(TestSuite)
-    app.add_node(TestCase)
-    app.add_node(TestReport)
-    app.add_node(EnvReport)
+    cast(object, app.add_node(TestResults))
+    cast(object, app.add_node(TestFile))
+    cast(object, app.add_node(TestSuite))
+    cast(object, app.add_node(TestCase))
+    cast(object, app.add_node(TestReport))
+    cast(object, app.add_node(EnvReport))
 
     # directives
-    app.add_directive("test-results", TestResultsDirective)
-    app.add_directive("test-env", EnvReportDirective)
-    app.add_directive("test-report", TestReportDirective)
+    cast(object, app.add_directive("test-results", TestResultsDirective))
+    cast(object, app.add_directive("test-env", EnvReportDirective))
+    cast(object, app.add_directive("test-report", TestReportDirective))
 
     # events
-    app.connect("env-updated", install_styles_static_files)
-    app.connect("config-inited", tr_preparation)
-    app.connect("config-inited", sphinx_needs_update)
+    cast(object, app.connect("env-updated", install_styles_static_files))
+    cast(object, app.connect("config-inited", tr_preparation))
+    cast(object, app.connect("config-inited", sphinx_needs_update))
 
-    app.connect("builder-inited", register_tr_extra_options)
+    cast(object, app.connect("builder-inited", register_tr_extra_options))
 
     return {
         "version": VERSION,  # identifies the version of our extension
@@ -140,17 +149,18 @@ def setup(app: Sphinx) -> dict[str, object]:
 def register_tr_extra_options(app: Sphinx) -> None:
     """Register extra options with directives."""
 
-    log = logging.getLogger(__name__)
-    tr_extra_options: list[str] = getattr(app.config, "tr_extra_options", [])
+    log = logger
+    tr_extra_options = cast(List[str], getattr(app.config, "tr_extra_options", []))
     log.debug(f"tr_extra_options = {tr_extra_options}")
 
     if tr_extra_options:
         for direc in [TestSuiteDirective, TestFileDirective, TestCaseDirective]:
             for option_name in tr_extra_options:
-                direc.option_spec[option_name] = directives.unchanged
+                opt_spec = cast(Dict[str, object], direc.option_spec)
+                opt_spec[option_name] = directives.unchanged
                 log.debug(f"Registered {option_name} with {direc}")
                 log.debug(
-                    f"{direc}.option_spec now has keys: {list(direc.option_spec.keys())}"
+                    f"{direc}.option_spec now has keys: {list(cast(Dict[str, object], direc.option_spec).keys())}"
                 )
 
 
@@ -162,13 +172,17 @@ def tr_preparation(app: Sphinx, *args: object) -> None:
         setattr(app, "tr_types", {})
 
     # Collects the configured test-report node types
-    app.tr_types[app.config.tr_file[0]] = app.config.tr_file[1:]
-    app.tr_types[app.config.tr_suite[0]] = app.config.tr_suite[1:]
-    app.tr_types[app.config.tr_case[0]] = app.config.tr_case[1:]
+    tr_types = cast(Dict[str, List[str]], getattr(app, "tr_types"))
+    tr_file = cast(List[str], app.config.tr_file)
+    tr_suite = cast(List[str], app.config.tr_suite)
+    tr_case = cast(List[str], app.config.tr_case)
+    tr_types[tr_file[0]] = tr_file[1:]
+    tr_types[tr_suite[0]] = tr_suite[1:]
+    tr_types[tr_case[0]] = tr_case[1:]
 
-    app.add_directive(app.config.tr_file[0], TestFileDirective)
-    app.add_directive(app.config.tr_suite[0], TestSuiteDirective)
-    app.add_directive(app.config.tr_case[0], TestCaseDirective)
+    cast(object, app.add_directive(tr_file[0], TestFileDirective))
+    cast(object, app.add_directive(tr_suite[0], TestSuiteDirective))
+    cast(object, app.add_directive(tr_case[0], TestCaseDirective))
 
 
 def sphinx_needs_update(app: Sphinx, config: Config) -> None:
@@ -180,31 +194,34 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
     # For details read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_extra_option
 
-    add_extra_option(app, "file")
-    add_extra_option(app, "suite")
-    add_extra_option(app, "case")
-    add_extra_option(app, "case_name")
-    add_extra_option(app, "case_parameter")
-    add_extra_option(app, "classname")
-    add_extra_option(app, "time")
+    cast(object, add_extra_option(app, "file"))
+    cast(object, add_extra_option(app, "suite"))
+    cast(object, add_extra_option(app, "case"))
+    cast(object, add_extra_option(app, "case_name"))
+    cast(object, add_extra_option(app, "case_parameter"))
+    cast(object, add_extra_option(app, "classname"))
+    cast(object, add_extra_option(app, "time"))
 
-    add_extra_option(app, "suites")
-    add_extra_option(app, "cases")
+    cast(object, add_extra_option(app, "suites"))
+    cast(object, add_extra_option(app, "cases"))
 
-    add_extra_option(app, "passed")
-    add_extra_option(app, "skipped")
-    add_extra_option(app, "failed")
-    add_extra_option(app, "errors")
-    add_extra_option(app, "result")  # used by test cases only
+    cast(object, add_extra_option(app, "passed"))
+    cast(object, add_extra_option(app, "skipped"))
+    cast(object, add_extra_option(app, "failed"))
+    cast(object, add_extra_option(app, "errors"))
+    cast(object, add_extra_option(app, "result"))  # used by test cases only
 
     # Extra dynamic functions
     # For details about usage read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_dynamic_function
-    add_dynamic_function(app, tr_link)
+    cast(object, add_dynamic_function(app, tr_link))
 
     # Extra need types
     # For details about usage read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_need_type
-    add_need_type(app, *app.config.tr_file[1:])
-    add_need_type(app, *app.config.tr_suite[1:])
-    add_need_type(app, *app.config.tr_case[1:])
+    tr_file = cast(List[str], app.config.tr_file)
+    tr_suite = cast(List[str], app.config.tr_suite)
+    tr_case = cast(List[str], app.config.tr_case)
+    cast(object, add_need_type(app, *tr_file[1:]))
+    cast(object, add_need_type(app, *tr_suite[1:]))
+    cast(object, add_need_type(app, *tr_case[1:]))
