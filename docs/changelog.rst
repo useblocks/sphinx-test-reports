@@ -7,6 +7,13 @@ Unreleased
 ----------
 :Released: under development
 
+1.3.1
+-----
+:Released: 02.10.2025
+
+* Support Sphinx-Needs 6 schema validation
+  `#122 <https://github.com/useblocks/sphinx-test-reports/pull/122>`_
+
 1.3.0
 -----
 :Released: 28.09.2025
