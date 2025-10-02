@@ -135,11 +135,12 @@ class TestCaseDirective(TestCommonDirective):
         # to be in one specific type
         # Handle time conversion if it's a number (seconds)
         if isinstance(time, (int, float)) and time > 0:
-            # Convert to string
-            time = str(datetime.timedelta(seconds=time))
-        elif isinstance(time, (int, float)):
-            # Handle zero or negative time
-            time = ""
+            if time > 0:
+                # Convert to string
+                time = str(datetime.timedelta(seconds=time))
+            else:
+                # Handle zero or negative time
+                time = ""
         # If time is already a string or None, keep it as is
         style = "tr_" + case["result"]
 
