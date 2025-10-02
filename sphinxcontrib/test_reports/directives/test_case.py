@@ -134,7 +134,7 @@ class TestCaseDirective(TestCommonDirective):
         # Ensure time is a string, SN 6.0.0 requires
         # to be in one specific type
         # Handle time conversion if it's a number (seconds)
-        if isinstance(time, (int, float)) and time > 0:
+        if isinstance(time, (int, float)):
             if time > 0:
                 # Convert to string
                 time = str(datetime.timedelta(seconds=time))
