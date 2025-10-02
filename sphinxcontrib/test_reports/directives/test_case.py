@@ -139,7 +139,7 @@ class TestCaseDirective(TestCommonDirective):
             time = str(datetime.timedelta(seconds=time))
         elif isinstance(time, (int, float)):
             # Handle zero or negative time
-            time = datetime.datetime.now().isoformat()
+            time = ""
         # If time is already a string or None, keep it as is
         style = "tr_" + case["result"]
 
