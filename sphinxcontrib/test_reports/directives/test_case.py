@@ -1,3 +1,5 @@
+import datetime
+
 from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
@@ -129,6 +131,16 @@ class TestCaseDirective(TestCommonDirective):
 """.format("\n   ".join([x.lstrip() for x in case["system-out"].split("\n")]))
 
         time = case["time"]
+        # Ensure time is a string, SN 6.0.0 requires
+        # to be in one specific type
+        # Handle time conversion if it's a number (seconds)
+        if isinstance(time, (int, float)) and time > 0:
+            # Convert to string
+            time = str(datetime.timedelta(seconds=time))
+        elif isinstance(time, (int, float)):
+            # Handle zero or negative time
+            time = datetime.datetime.now().isoformat()
+        # If time is already a string or None, keep it as is
         style = "tr_" + case["result"]
 
         import re
