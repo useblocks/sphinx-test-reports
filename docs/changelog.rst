@@ -16,7 +16,6 @@ Unreleased
 
 * Support Sphinx-Needs 6 schema validation
   `#122 <https://github.com/useblocks/sphinx-test-reports/pull/122>`_
-  `#124 <https://github.com/useblocks/sphinx-test-reports/pull/124>`_
 
 1.3.0
 -----
