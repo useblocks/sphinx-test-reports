@@ -12,10 +12,12 @@ Unreleased
 1.3.1
 -----
 :Released: 02.10.2025
-:Full Changelog: `v1.3.0...v1.3.1 <https://github.com/useblocks/sphinx-test-reports/compare/1.3.0...54fa458960a97b747d4eacd009c36f4cdec44f59>`__
+:Full Changelog: `v1.3.0...v1.3.1 <https://github.com/useblocks/sphinx-test-reports/compare/1.3.0...1.3.1>`__
 
 * Support Sphinx-Needs 6 schema validation
   `#122 <https://github.com/useblocks/sphinx-test-reports/pull/122>`_
+* Increase version to 1.3.1
+  `#124 <https://github.com/useblocks/sphinx-test-reports/pull/124>`_
 
 1.3.0
 -----
