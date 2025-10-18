@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
-from typing import List, Optional, Tuple, Dict, Iterable, Protocol, cast
+from typing import Dict, Iterable, List, Optional, Protocol, Tuple, cast
 
 import sphinx
 from docutils import nodes
@@ -13,17 +13,21 @@ from sphinx.environment import BuildEnvironment
 
 # ---------- Typing ----------
 
+
 class LoggerProtocol(Protocol):
     def debug(self, msg: str) -> object: ...
     def info(self, msg: str) -> object: ...
     def warning(self, msg: str) -> object: ...
     def error(self, msg: str) -> object: ...
 
+
 class _AppConfigProtocol(Protocol):
     tr_rootdir: str
 
+
 class _AppProtocol(Protocol):
     config: _AppConfigProtocol
+
 
 # ---------- Logger ----------
 
@@ -31,13 +35,16 @@ sphinx_version = sphinx.__version__
 logger: LoggerProtocol
 if Version(sphinx_version) >= Version("1.6"):
     from sphinx.util import logging as sphinx_logging
+
     logger = cast(LoggerProtocol, sphinx_logging.getLogger(__name__))
 else:
     import logging as std_logging
+
     std_logging.basicConfig()
     logger = cast(LoggerProtocol, std_logging.getLogger(__name__))
 
 # ---------- Nodes & Directive ----------
+
 
 class EnvReport(nodes.General, nodes.Element):
     pass
@@ -100,13 +107,13 @@ class EnvReportDirective(Directive):
             json_path = os.path.join(root_path, json_path)
 
         if not os.path.exists(json_path):
-            raise JsonFileNotFound(f"The given file does not exist: {json_path}")
+            raise JsonFileNotFoundError(f"The given file does not exist: {json_path}")
 
         with open(json_path) as fp_json:
             try:
                 results: Dict[str, Dict[str, object]] = json.load(fp_json)
             except ValueError as exc:
-                raise InvalidJsonFile(
+                raise InvalidJsonFileError(
                     "The given file {} is not a valid JSON".format(
                         json_path.split("/")[-1]
                     )
@@ -157,7 +164,9 @@ class EnvReportDirective(Directive):
                 code_block = nodes.literal_block(results_string, results_string)
                 code_block["language"] = "json"
                 section += code_block  # nodes.literal_block(results, results)
-                main_section.append(section)  # nodes.literal_block(enviro, results[enviro])
+                main_section.append(
+                    section
+                )  # nodes.literal_block(enviro, results[enviro])
                 del temp_dict2
 
         elif "raw" in self.options and self.req_env_list is not None:
@@ -190,7 +199,9 @@ class EnvReportDirective(Directive):
 
         return main_section
 
-    def _crete_table_b(self, enviro: str, results: Dict[str, Dict[str, object]]) -> List[nodes.Node]:
+    def _crete_table_b(
+        self, enviro: str, results: Dict[str, Dict[str, object]]
+    ) -> List[nodes.Node]:
         main_section: List[nodes.Node] = []
         section = nodes.section()
         section += nodes.title(text=enviro)
@@ -246,13 +257,13 @@ class EnvReportDirective(Directive):
         return row
 
 
-class InvalidJsonFile(Exception):
+class InvalidJsonFileError(Exception):
     pass
 
 
-class JsonFileNotFound(Exception):
+class JsonFileNotFoundError(Exception):
     pass
 
 
-class InvalidEnvRequested(Exception):
+class InvalidEnvRequestedError(Exception):
     pass

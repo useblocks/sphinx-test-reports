@@ -1,10 +1,12 @@
 """
 JUnit XML parser
 """
+
 import os
-from typing import Optional, Dict, List, cast
+from typing import Dict, List, Optional, cast
+
 from lxml import etree, objectify
-from lxml.etree import _ElementTree, _Element
+from lxml.etree import _Element, _ElementTree
 
 
 class JUnitParser:
@@ -24,7 +26,9 @@ class JUnitParser:
         self.junit_xsd_path = junit_xsd
 
         if not os.path.exists(self.junit_xml_path):
-            raise JUnitFileMissing(f"The given file does not exist: {self.junit_xml_path}")
+            raise JUnitFileMissingError(
+                f"The given file does not exist: {self.junit_xml_path}"
+            )
 
         self.junit_schema_doc = None
         self.xmlschema = None
@@ -62,7 +66,7 @@ class JUnitParser:
             # The following data is normally a subnode (e.g. skipped/failure).
             # We integrate it right into the testcase for better handling
             if hasattr(testcase, "skipped"):
-                skipped = cast(_Element, getattr(testcase, "skipped"))
+                skipped = cast(_Element, testcase.skipped)
                 tc_dict["result"] = "skipped"
                 tc_dict["type"] = str(skipped.attrib.get("type", "unknown"))
                 tc_dict["text"] = str(skipped.text or "")
@@ -70,7 +74,7 @@ class JUnitParser:
                 # result.text can be None for pytest xfail test cases
                 tc_dict["message"] = str(skipped.attrib.get("message", "unknown"))
             elif hasattr(testcase, "failure"):
-                failure = cast(_Element, getattr(testcase, "failure"))
+                failure = cast(_Element, testcase.failure)
                 tc_dict["result"] = "failure"
                 tc_dict["type"] = str(failure.attrib.get("type", "unknown"))
                 # tc_dict["text"] = re.sub(r"[\n\t]*", "", result.text)  # Removes newlines and tabs
@@ -121,15 +125,19 @@ class JUnitParser:
 
             # add nested testsuite objects to
             if hasattr(testsuite, "testsuite"):
-                nested_suites = cast(List[_Element], getattr(testsuite, "testsuite"))
+                nested_suites = cast(List[_Element], testsuite.testsuite)
                 for ts in nested_suites:
                     # dict from inner parse
-                    cast(List[Dict[str, object]], ts_dict["testsuite_nested"]).append(parse_testsuite(ts))
+                    cast(List[Dict[str, object]], ts_dict["testsuite_nested"]).append(
+                        parse_testsuite(ts)
+                    )
 
             if hasattr(testsuite, "testcase"):
-                testcases = cast(List[_Element], getattr(testsuite, "testcase"))
+                testcases = cast(List[_Element], testsuite.testcase)
                 for tc in testcases:
-                    cast(List[Dict[str, object]], ts_dict["testcases"]).append(parse_testcase(tc))
+                    cast(List[Dict[str, object]], ts_dict["testcases"]).append(
+                        parse_testcase(tc)
+                    )
 
             return ts_dict
 
@@ -139,9 +147,8 @@ class JUnitParser:
 
         if self.junit_xml_object.tag == "testsuites":
             if hasattr(self.junit_xml_object, "testsuite"):
-                suites = cast(List[_Element], getattr(self.junit_xml_object, "testsuite"))
-                for ts in suites:
-                    junit_dict.append(parse_testsuite(ts))
+                suites = cast(List[_Element], self.junit_xml_object.testsuite)
+                junit_dict.extend([parse_testsuite(ts) for ts in suites])
         else:
             junit_dict.append(parse_testsuite(self.junit_xml_object))
 
@@ -151,5 +158,5 @@ class JUnitParser:
         pass
 
 
-class JUnitFileMissing(Exception):
+class JUnitFileMissingError(Exception):
     pass

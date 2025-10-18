@@ -1,9 +1,9 @@
 # fmt: off
 import pathlib
+from typing import Dict, List, Protocol, cast
 
 from docutils import nodes
 from docutils.parsers.rst import directives
-from typing import List, Dict, Optional, Protocol, cast
 
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
@@ -55,7 +55,7 @@ class TestReportDirective(TestCommonDirective):
         if tr_template.is_absolute():
             template_path = tr_template
         else:
-            app_confdir = cast(str, getattr(self.app, "confdir"))
+            app_confdir = cast(str, self.app.confdir)
             template_path = pathlib.Path(app_confdir) / tr_template
 
         if not template_path.is_file():

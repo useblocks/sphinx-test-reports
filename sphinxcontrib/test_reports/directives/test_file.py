@@ -1,4 +1,5 @@
 import hashlib
+from typing import Dict, List, Optional, cast
 
 from docutils import nodes
 from docutils.parsers.rst import directives
@@ -8,8 +9,6 @@ from sphinx_needs.utils import add_doc
 import sphinxcontrib.test_reports.directives.test_suite
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportIncompleteConfigurationError
-
-from typing import Dict, List, Optional, cast
 
 
 class TestFile(nodes.General, nodes.Element):
@@ -81,28 +80,31 @@ class TestFileDirective(TestCommonDirective):
 
         main_section = []  # type: List[nodes.Element]
         docname = cast(str, self.state.document.settings.env.docname)
-        main_section += cast(List[nodes.Element], add_need(
-            self.app,
-            self.state,
-            docname,
-            self.lineno,
-            need_type=self.need_type,
-            title=self.test_name,
-            id=self.test_id,
-            content=self.test_content,
-            links=self.test_links,
-            tags=self.test_tags,
-            status=self.test_status,
-            collapse=self.collapse,
-            file=self.test_file_given,
-            suites=suites,
-            cases=cases,
-            passed=passed,
-            skipped=skipped,
-            failed=failed,
-            errors=errors,
-            **(self.extra_options or {}),
-        ))
+        main_section += cast(
+            List[nodes.Element],
+            add_need(
+                self.app,
+                self.state,
+                docname,
+                self.lineno,
+                need_type=self.need_type,
+                title=self.test_name,
+                id=self.test_id,
+                content=self.test_content,
+                links=self.test_links,
+                tags=self.test_tags,
+                status=self.test_status,
+                collapse=self.collapse,
+                file=self.test_file_given,
+                suites=suites,
+                cases=cases,
+                passed=passed,
+                skipped=skipped,
+                failed=failed,
+                errors=errors,
+                **(self.extra_options or {}),
+            ),
+        )
 
         if (
             "auto_cases" in self.options.keys()

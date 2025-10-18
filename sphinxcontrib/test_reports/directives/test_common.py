@@ -6,7 +6,17 @@ A Common directive, from which all other test directives inherit the shared func
 import os
 import pathlib
 from importlib.metadata import version
-from typing import Any, Dict, Optional, List, Tuple, Mapping, MutableMapping, Union, Protocol, cast
+from typing import (
+    Dict,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    cast,
+)
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
@@ -58,11 +68,13 @@ class TestCommonDirective(Directive):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
-        self.env: _SphinxEnvProtocol = cast(_SphinxEnvProtocol, self.state.document.settings.env)
+        self.env: _SphinxEnvProtocol = cast(
+            _SphinxEnvProtocol, self.state.document.settings.env
+        )
         self.app: _SphinxAppProtocol = self.env.app
         if not hasattr(self.app, "testreport_data"):
             empty_store: Dict[str, List[Dict[str, object]]] = {}
-            setattr(self.app, "testreport_data", empty_store)
+            self.app.testreport_data = empty_store
 
         self.test_file: Optional[str] = None
         self.results: Optional[List[Dict[str, object]]] = None
@@ -82,7 +94,9 @@ class TestCommonDirective(Directive):
 
     def collect_extra_options(self) -> None:
         """Collect any extra options and their values that were specified in the directive"""
-        tr_extra_options = cast(Optional[List[str]], getattr(self.app.config, "tr_extra_options", None))
+        tr_extra_options = cast(
+            Optional[List[str]], getattr(self.app.config, "tr_extra_options", None)
+        )
         extra: Dict[str, object] = {}
 
         if tr_extra_options:
@@ -120,7 +134,11 @@ class TestCommonDirective(Directive):
             if os.path.splitext(self.test_file)[1] == ".json":
                 json_mapping_all = self.app.config.tr_json_mapping
                 mapping_values = list(json_mapping_all.values())
-                mapping: MappingEntryType = mapping_values[0] if mapping_values else {"testcase": {}, "testsuite": {}}
+                mapping: MappingEntryType = (
+                    mapping_values[0]
+                    if mapping_values
+                    else {"testcase": {}, "testsuite": {}}
+                )
                 parser = JsonParser(self.test_file, json_mapping=mapping)
             else:
                 parser = JUnitParser(self.test_file)
@@ -168,7 +186,9 @@ class TestCommonDirective(Directive):
             raise SphinxError("ID must be set for test-report.")
 
         self.test_file = cast(Optional[str], self.options.get("file"))
-        self.test_file_given = str(self.test_file) if self.test_file is not None else None
+        self.test_file_given = (
+            str(self.test_file) if self.test_file is not None else None
+        )
 
         self.test_links = cast(str, self.options.get("links", ""))
         self.test_tags = cast(str, self.options.get("tags", ""))

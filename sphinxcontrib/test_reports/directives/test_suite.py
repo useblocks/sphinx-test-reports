@@ -1,22 +1,36 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Callable, Dict, List, Optional, TypedDict, cast, Protocol, runtime_checkable, ClassVar, Tuple
+from typing import (
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    TypedDict,
+    cast,
+    runtime_checkable,
+)
+
 from docutils import nodes
 from docutils.nodes import Node
 from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
 from sphinx_needs.utils import add_doc
+
 import sphinxcontrib.test_reports.directives.test_case as test_case_mod
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOptionError
 
-
 # --------- TypedDicts for parser results ------------
+
 
 class TestCaseDict(TypedDict):
     name: str
     classname: str
+
 
 class TestSuiteDict(TypedDict, total=False):
     name: str
@@ -32,6 +46,7 @@ class TestSuiteDict(TypedDict, total=False):
 
 # --------- Protocol for required config fields ---------
 
+
 @runtime_checkable
 class _SuiteConfigProtocol(Protocol):
     tr_suite_id_length: int
@@ -41,6 +56,7 @@ class _SuiteConfigProtocol(Protocol):
 
 
 # --------- Node class ---------
+
 
 class TestSuite(nodes.General, nodes.Element):
     pass
@@ -90,12 +106,16 @@ class TestSuiteDirective(TestCommonDirective):
         # If nested, access the first element's nested suites
         if nested:
             if not results:
-                raise TestReportInvalidOptionError("No suites available for nested access.")
+                raise TestReportInvalidOptionError(
+                    "No suites available for nested access."
+                )
             results = results[0].get("testsuite_nested", [])
 
         # Get target suite by name from options
         suite_name_obj = self.options.get("suite")
-        suite_name = str(suite_name_obj) if isinstance(suite_name_obj, (str, bytes)) else None
+        suite_name = (
+            str(suite_name_obj) if isinstance(suite_name_obj, (str, bytes)) else None
+        )
         if not suite_name:
             raise TestReportInvalidOptionError("Suite not given!")
 
@@ -125,28 +145,31 @@ class TestSuiteDirective(TestCommonDirective):
         docname = cast(str, self.state.document.settings.env.docname)
 
         # Create the need node for this suite
-        need_nodes = cast(List[Node], add_need(
-            self.app,
-            self.state,
-            docname,
-            self.lineno,
-            need_type=self.need_type,
-            title=self.test_name,
-            id=self.test_id,
-            content=self.test_content,
-            links=self.test_links,
-            tags=self.test_tags,
-            status=self.test_status,
-            collapse=self.collapse,
-            file=self.test_file_given,
-            suite=suite.get("name", ""),
-            cases=cases_count,
-            passed=passed,
-            skipped=skipped,
-            failed=failed,
-            errors=errors,
-            **(self.extra_options or {}),
-        ))
+        need_nodes = cast(
+            List[Node],
+            add_need(
+                self.app,
+                self.state,
+                docname,
+                self.lineno,
+                need_type=self.need_type,
+                title=self.test_name,
+                id=self.test_id,
+                content=self.test_content,
+                links=self.test_links,
+                tags=self.test_tags,
+                status=self.test_status,
+                collapse=self.collapse,
+                file=self.test_file_given,
+                suite=suite.get("name", ""),
+                cases=cases_count,
+                passed=passed,
+                skipped=skipped,
+                failed=failed,
+                errors=errors,
+                **(self.extra_options or {}),
+            ),
+        )
         main_section += need_nodes
 
         # --- Handle nested suites if current suite has no testcases ---
@@ -192,17 +215,31 @@ class TestSuiteDirective(TestCommonDirective):
                     )
 
                     # Run nested suite directive
-                    main_section += cast(List[Node], suite_directive.run(nested=True, count=access_count))
+                    main_section += cast(
+                        List[Node], suite_directive.run(nested=True, count=access_count)
+                    )
                     access_count += 1
 
         # --- Automatically create testcase nodes if configured ---
-        if "auto_cases" in self.options.keys() and isinstance(testcases_list, list) and testcases_list:
+        if (
+            "auto_cases" in self.options.keys()
+            and isinstance(testcases_list, list)
+            and testcases_list
+        ):
             case_count = 0
             for case in testcases_list:
                 cfg = self._get_cfg_suite()
                 base_id = self.test_id or ""
-                compound = (case.get("classname", "") + "\x00" + case.get("name", "")).encode("UTF-8")
-                case_id = base_id + "_" + hashlib.sha1(compound).hexdigest().upper()[: cfg.tr_case_id_length]
+                compound = (
+                    case.get("classname", "") + "\x00" + case.get("name", "")
+                ).encode("UTF-8")
+                case_id = (
+                    base_id
+                    + "_"
+                    + hashlib.sha1(compound)
+                    .hexdigest()
+                    .upper()[: cfg.tr_case_id_length]
+                )
 
                 if case_id in self.case_ids:
                     raise Exception(f"Case ID exists: {case_id}")
@@ -233,10 +270,15 @@ class TestSuiteDirective(TestCommonDirective):
                     self.state_machine,
                 )
 
-                is_nested = (("testsuite_nested" in suite and isinstance(suite.get("testsuite_nested"), list) and len(cast(List[object], suite.get("testsuite_nested"))) > 0)
-                             or nested)
+                is_nested = (
+                    "testsuite_nested" in suite
+                    and isinstance(suite.get("testsuite_nested"), list)
+                    and len(cast(List[object], suite.get("testsuite_nested"))) > 0
+                ) or nested
 
-                main_section += cast(List[Node], case_directive.run(is_nested, count, case_count))
+                main_section += cast(
+                    List[Node], case_directive.run(is_nested, count, case_count)
+                )
 
                 if is_nested:
                     case_count += 1

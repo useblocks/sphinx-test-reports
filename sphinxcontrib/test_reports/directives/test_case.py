@@ -1,3 +1,5 @@
+from typing import Dict, List, Match, Optional, cast
+
 from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx_needs.api import add_need
@@ -6,8 +8,6 @@ from sphinx_needs.utils import add_doc
 from sphinxcontrib.test_reports.config import DEFAULT_OPTIONS
 from sphinxcontrib.test_reports.directives.test_common import TestCommonDirective
 from sphinxcontrib.test_reports.exceptions import TestReportInvalidOptionError
-
-from typing import Dict, List, Optional, Match, Tuple, cast
 
 
 class TestCase(nodes.General, nodes.Element):
@@ -39,7 +39,9 @@ class TestCaseDirective(TestCommonDirective):
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
 
-    def run(self, nested: bool = False, suite_count: int = -1, case_count: int = -1) -> List[nodes.Element]:
+    def run(
+        self, nested: bool = False, suite_count: int = -1, case_count: int = -1
+    ) -> List[nodes.Element]:
         self.prepare_basic_options()
         results = self.load_test_file()
 
@@ -53,19 +55,19 @@ class TestCaseDirective(TestCommonDirective):
             raise TestReportInvalidOptionError("Case or classname not given!")
 
         # Typing aliases
-        TestsuiteDict = Dict[str, object]
-        TestcaseDict = Dict[str, object]
+        testsuite_dict = Dict[str, object]
+        testcase_dict = Dict[str, object]
 
         # Gather candidate suites
-        candidate_suites: List[TestsuiteDict] = []
+        candidate_suites: List[testsuite_dict] = []
         if results is not None:
-            candidate_suites = cast(List[TestsuiteDict], results)
+            candidate_suites = cast(List[testsuite_dict], results)
 
         # Handle nested selection if requested
-        selected_suite: Optional[TestsuiteDict] = None
+        selected_suite: Optional[testsuite_dict] = None
         if nested and suite_count >= 0 and candidate_suites:
             root_suite = candidate_suites[0]
-            nested_suites = cast(List[TestsuiteDict], root_suite.get("testsuites", []))
+            nested_suites = cast(List[testsuite_dict], root_suite.get("testsuites", []))
             if 0 <= suite_count < len(nested_suites):
                 selected_suite = nested_suites[suite_count]
 
@@ -82,8 +84,8 @@ class TestCaseDirective(TestCommonDirective):
             )
 
         # Select testcase
-        testcases = cast(List[TestcaseDict], selected_suite.get("testcases", []))
-        selected_case: Optional[TestcaseDict] = None
+        testcases = cast(List[testcase_dict], selected_suite.get("testcases", []))
+        selected_case: Optional[testcase_dict] = None
         for case_obj in testcases:
             name = str(case_obj.get("name", ""))
             classname_val = str(case_obj.get("classname", ""))
@@ -96,7 +98,12 @@ class TestCaseDirective(TestCommonDirective):
                 selected_case = case_obj
                 break
 
-        if selected_case is None and nested and case_count >= 0 and 0 <= case_count < len(testcases):
+        if (
+            selected_case is None
+            and nested
+            and case_count >= 0
+            and 0 <= case_count < len(testcases)
+        ):
             selected_case = testcases[case_count]
 
         if selected_case is None and nested and testcases:
@@ -110,35 +117,70 @@ class TestCaseDirective(TestCommonDirective):
 
         result = str(selected_case.get("result", ""))
         content = self.test_content or ""
-        if selected_case.get("text") is not None and isinstance(selected_case.get("text"), str) and len(cast(str, selected_case.get("text"))) > 0:
+        if (
+            selected_case.get("text") is not None
+            and isinstance(selected_case.get("text"), str)
+            and len(cast(str, selected_case.get("text"))) > 0
+        ):
             content += """
 
 **Text**::
 
    {}
 
-""".format("\n   ".join([x.lstrip() for x in cast(str, selected_case.get("text", "")).split("\n")]))
+""".format(
+                "\n   ".join(
+                    [
+                        x.lstrip()
+                        for x in cast(str, selected_case.get("text", "")).split("\n")
+                    ]
+                )
+            )
 
-        if selected_case.get("message") is not None and isinstance(selected_case.get("message"), str) and len(cast(str, selected_case.get("message"))) > 0:
+        if (
+            selected_case.get("message") is not None
+            and isinstance(selected_case.get("message"), str)
+            and len(cast(str, selected_case.get("message"))) > 0
+        ):
             content += """
 
 **Message**::
 
    {}
 
-""".format("\n   ".join([x.lstrip() for x in cast(str, selected_case.get("message", "")).split("\n")]))
+""".format(
+                "\n   ".join(
+                    [
+                        x.lstrip()
+                        for x in cast(str, selected_case.get("message", "")).split("\n")
+                    ]
+                )
+            )
 
-        if selected_case.get("system-out") is not None and isinstance(selected_case.get("system-out"), str) and len(cast(str, selected_case.get("system-out"))) > 0:
+        if (
+            selected_case.get("system-out") is not None
+            and isinstance(selected_case.get("system-out"), str)
+            and len(cast(str, selected_case.get("system-out"))) > 0
+        ):
             content += """
 
 **System-out**::
 
    {}
 
-""".format("\n   ".join([x.lstrip() for x in cast(str, selected_case.get("system-out", "")).split("\n")]))
+""".format(
+                "\n   ".join(
+                    [
+                        x.lstrip()
+                        for x in cast(str, selected_case.get("system-out", "")).split(
+                            "\n"
+                        )
+                    ]
+                )
+            )
 
         time = float(selected_case.get("time", 0.0))
-        
+
         # Ensure time is a string, SN 6.0.0 requires to be in one specific type
         # and it is set to string for backwards compatibility
         if isinstance(time, (int, float)):
@@ -159,7 +201,10 @@ class TestCaseDirective(TestCommonDirective):
 
         import re
 
-        groups: Optional[Match[str]] = re.match(r"^(?P<name>[^\[]+)($|\[(?P<param>.*)?\])", str(selected_case.get("name", "")))
+        groups: Optional[Match[str]] = re.match(
+            r"^(?P<name>[^\[]+)($|\[(?P<param>.*)?\])",
+            str(selected_case.get("name", "")),
+        )
         if groups is not None:
             case_name = groups["name"]
             case_parameter = groups["param"]
@@ -187,30 +232,33 @@ class TestCaseDirective(TestCommonDirective):
 
         main_section: List[nodes.Element] = []
         # Merge all options including extra ones
-        main_section += cast(List[nodes.Element], add_need(
-            self.app,
-            self.state,
-            docname,
-            self.lineno,
-            need_type=self.need_type,
-            title=self.test_name,
-            id=self.test_id,
-            content=content,
-            links=self.test_links,
-            tags=self.test_tags,
-            status=self.test_status,
-            collapse=self.collapse,
-            file=self.test_file_given,
-            suite=str(selected_suite.get("name", "")),
-            case=case_full_name,
-            case_name=case_name,
-            case_parameter=case_parameter,
-            classname=class_name,
-            result=result,
-            time=time_str,
-            style=style,
-            **(self.extra_options or {}),
-        ))
+        main_section += cast(
+            List[nodes.Element],
+            add_need(
+                self.app,
+                self.state,
+                docname,
+                self.lineno,
+                need_type=self.need_type,
+                title=self.test_name,
+                id=self.test_id,
+                content=content,
+                links=self.test_links,
+                tags=self.test_tags,
+                status=self.test_status,
+                collapse=self.collapse,
+                file=self.test_file_given,
+                suite=str(selected_suite.get("name", "")),
+                case=case_full_name,
+                case_name=case_name,
+                case_parameter=case_parameter,
+                classname=class_name,
+                result=result,
+                time=time_str,
+                style=style,
+                **(self.extra_options or {}),
+            ),
+        )
 
         add_doc(self.env, docname)
         return main_section

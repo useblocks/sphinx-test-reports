@@ -1,4 +1,4 @@
-from sphinx.errors import SphinxError, SphinxWarning 
+from sphinx.errors import SphinxError, SphinxWarning
 
 __all__ = [
     "SphinxError",

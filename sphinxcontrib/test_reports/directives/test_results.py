@@ -1,18 +1,23 @@
 # sphinxcontrib/test_reports/directives/test_results.py
 
 import os
-from typing import List, Tuple, Dict, Union, cast
+from typing import Dict, List, Tuple, Union, cast
+
 from docutils import nodes
 from docutils.parsers.rst import Directive
-from sphinxcontrib.test_reports.junitparser import JUnitParser
 from sphinx.environment import BuildEnvironment
 
+from sphinxcontrib.test_reports.junitparser import JUnitParser
 
 TestcaseDict = Dict[str, Union[str, int, float]]
-TestsuiteDict = Dict[str, Union[str, int, float, List[TestcaseDict], List["TestsuiteDict"]]]
+TestsuiteDict = Dict[
+    str, Union[str, int, float, List[TestcaseDict], List["TestsuiteDict"]]
+]
+
 
 class TestResults(nodes.General, nodes.Element):
     pass
+
 
 class TestResultsDirective(Directive):
     """
@@ -100,7 +105,9 @@ class TestResultsDirective(Directive):
         row = nodes.row(classes=cast(List[str], [result_class]))
 
         for index, cell in enumerate(row_cells):
-            entry = nodes.entry(classes=cast(List[str], [result_class, self.header[index]]))
+            entry = nodes.entry(
+                classes=cast(List[str], [result_class, self.header[index]])
+            )
             entry += nodes.paragraph(text=cell, classes=cast(List[str], [result_class]))
             row += entry
 

@@ -1,5 +1,6 @@
 # fmt: off
 import os
+from typing import Dict, List, Protocol, cast
 
 import sphinx
 import sphinx_needs
@@ -29,7 +30,6 @@ from sphinxcontrib.test_reports.directives.test_suite import (
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.functions import tr_link
 
-from typing import Any, Dict, List, Optional, Protocol, cast
 
 class LoggerProtocol(Protocol):
     def debug(self, msg: str) -> object: ...
@@ -60,7 +60,7 @@ def setup(app: Sphinx) -> dict[str, object]:
     """
 
     app.add_config_value("tr_file_option", "file", "html")
-    
+
     log = logger
     log.info("Setting up sphinx-test-reports extension")
 
@@ -68,17 +68,25 @@ def setup(app: Sphinx) -> dict[str, object]:
     app.add_config_value("tr_rootdir", cast(str, app.confdir), "html")
     app.add_config_value(
         "tr_file",
-        cast(List[str], ["test-file", "testfile", "Test-File", "TF_", "#ffffff", "node"]),
+        cast(
+            List[str], ["test-file", "testfile", "Test-File", "TF_", "#ffffff", "node"]
+        ),
         "html",
     )
     app.add_config_value(
         "tr_suite",
-        cast(List[str], ["test-suite", "testsuite", "Test-Suite", "TS_", "#cccccc", "folder"]),
+        cast(
+            List[str],
+            ["test-suite", "testsuite", "Test-Suite", "TS_", "#cccccc", "folder"],
+        ),
         "html",
     )
     app.add_config_value(
         "tr_case",
-        cast(List[str], ["test-case", "testcase", "Test-Case", "TC_", "#999999", "rectangle"]),
+        cast(
+            List[str],
+            ["test-case", "testcase", "Test-Case", "TC_", "#999999", "rectangle"],
+        ),
         "html",
     )
 
@@ -172,10 +180,10 @@ def tr_preparation(app: Sphinx, *args: object) -> None:
     Prepares needed vars in the app context.
     """
     if not hasattr(app, "tr_types"):
-        setattr(app, "tr_types", {})
+        app.tr_types = {}
 
     # Collects the configured test-report node types
-    tr_types = cast(Dict[str, List[str]], getattr(app, "tr_types"))
+    tr_types = cast(Dict[str, List[str]], app.tr_types)
     tr_file = cast(List[str], app.config.tr_file)
     tr_suite = cast(List[str], app.config.tr_suite)
     tr_case = cast(List[str], app.config.tr_case)
@@ -192,7 +200,7 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
     """
     sphinx-needs configuration
     """
-    
+
     # Check sphinx-needs version to determine if schema is needed
     try:
         needs_version = Version(sphinx_needs.__version__)

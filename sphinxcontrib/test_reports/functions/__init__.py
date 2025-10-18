@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Dict, List
 
 
 def tr_link(
@@ -8,7 +8,7 @@ def tr_link(
     test_option: str,
     target_option: str,
     *args: object,
-    **kwargs: object
+    **kwargs: object,
 ) -> List[str]:
     if test_option not in need:
         return []
@@ -20,12 +20,16 @@ def tr_link(
     for need_target in needs.values():
         if target_option not in need_target:
             continue
-        for test_opt in test_opt_values:
+        # Directly filter matching test_opt_values
+        matched_ids = [
+            need_target["id"]
+            for test_opt in test_opt_values
             if (
                 test_opt == need_target[target_option]
                 and test_opt is not None
-                and len(test_opt) > 0  # fmt: skip
-            ):
-                links.append(need_target["id"])
+                and len(test_opt) > 0
+            )
+        ]
+        links.extend(matched_ids)
 
     return links

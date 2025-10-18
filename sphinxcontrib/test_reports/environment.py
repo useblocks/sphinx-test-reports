@@ -1,5 +1,5 @@
 import os
-from typing import TYPE_CHECKING, Optional, List, Callable, Iterable, cast
+from typing import Callable, Iterable, List, Optional, cast
 
 import sphinx
 from packaging.version import Version
@@ -11,7 +11,7 @@ brown = cast(object, getattr(_sphinx_console, "brown", ""))
 sphinx_version = sphinx.__version__
 if Version(sphinx_version) >= Version("1.6"):
     try:
-        from sphinx.util.display import status_iterator as _status_iterator 
+        from sphinx.util.display import status_iterator as _status_iterator
     except Exception:
         from sphinx.util import status_iterator as _status_iterator
 
@@ -46,7 +46,10 @@ def safe_add_file(filename: str, app: object) -> None:
 
     if data_file.split(".")[-1] == "js":
         if script_files is not None and static_data_file not in script_files:
-            add_js_file_fn = cast(Optional[Callable[[str], object]], getattr(cast(object, app), "add_js_file", None))
+            add_js_file_fn = cast(
+                Optional[Callable[[str], object]],
+                getattr(cast(object, app), "add_js_file", None),
+            )
             if add_js_file_fn is not None:
                 add_js_file_fn(data_file)
     elif data_file.split(".")[-1] == "css":
@@ -89,8 +92,8 @@ def safe_remove_file(filename: str, app: object) -> None:
 # Base implementation from sphinxcontrib-images
 # https://github.com/spinus/sphinxcontrib-images/blob/master/sphinxcontrib/images.py#L203
 def install_styles_static_files(app: object, env: object) -> None:
-    builder_obj: object = cast(object, getattr(app, "builder"))
-    outdir = cast(str, getattr(builder_obj, "outdir"))
+    builder_obj: object = cast(object, app.builder)
+    outdir = cast(str, builder_obj.outdir)
     statics_dir_path: str = os.path.join(outdir, STATICS_DIR_NAME)
     dest_path: str = os.path.join(statics_dir_path, "sphinx-test-results")
 
@@ -101,7 +104,7 @@ def install_styles_static_files(app: object, env: object) -> None:
 
     if Version(sphinx_version) < Version("1.6"):
         global status_iterator_typed
-        status_it = getattr(cast(object, app), "status_iterator")
+        status_it = cast(object, app).status_iterator
         status_iterator_typed = cast(StatusIteratorType, status_it)
 
     iterator = cast(StatusIteratorType, status_iterator_typed)
@@ -122,7 +125,9 @@ def install_styles_static_files(app: object, env: object) -> None:
             )
             print(f"{source_file_path} not found. Copying sphinx-internal blank.css")
 
-        dest_file_path: str = os.path.join(dest_path, os.path.basename(source_file_path))
+        dest_file_path: str = os.path.join(
+            dest_path, os.path.basename(source_file_path)
+        )
 
         if not os.path.exists(os.path.dirname(dest_file_path)):
             ensuredir(os.path.dirname(dest_file_path))
