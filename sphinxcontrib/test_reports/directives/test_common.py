@@ -207,7 +207,9 @@ class TestCommonDirective(Directive):
         elif isinstance(collapse_raw, bool):
             self.collapse = collapse_raw
         else:
-            self.collapse = bool(self.app.config.needs_collapse_details)
+            self.collapse = bool(
+                getattr(self.app.config, "needs_collapse_details", True)
+            )
 
         # Also collect any extra options while we're at it
         self.collect_extra_options()
