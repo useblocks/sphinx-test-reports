@@ -50,10 +50,10 @@ def safe_add_file(filename: str, app: object) -> None:
             if add_js_file_fn is not None:
                 add_js_file_fn(data_file)
     elif data_file.split(".")[-1] == "css":
-        if css_files is not None and static_data_file not in css_files:
-            add_css_file_fn = cast(Optional[Callable[[str], object]], getattr(cast(object, app), "add_css_file", None))
-            if add_css_file_fn is not None:
-                add_css_file_fn(data_file)
+        if hasattr(app.builder, "css_files"):
+            css_files = [css.filename for css in app.builder.css_files]
+            if static_data_file not in css_files:
+                app.add_css_file(data_file)
     else:
         raise NotImplementedError(
             "File type {} not support by save_add_file".format(data_file.split(".")[-1])

@@ -138,6 +138,23 @@ class TestCaseDirective(TestCommonDirective):
 """.format("\n   ".join([x.lstrip() for x in cast(str, selected_case.get("system-out", "")).split("\n")]))
 
         time = float(selected_case.get("time", 0.0))
+        
+        # Ensure time is a string, SN 6.0.0 requires to be in one specific type
+        # and it is set to string for backwards compatibility
+        if isinstance(time, (int, float)):
+            # Keep as numeric seconds (decimal format)
+            time = float(time) if time >= 0 else 0.0
+        elif time is None:
+            time = 0.0
+        else:
+            # Try to parse string to float, fallback to 0.0
+            try:
+                time = float(time)
+            except (ValueError, TypeError):
+                time = 0.0
+        time_str = str(time)
+
+        # If time is already a string or None, keep it as is
         style = "tr_" + str(selected_case.get("result", ""))
 
         import re
@@ -190,7 +207,7 @@ class TestCaseDirective(TestCommonDirective):
             case_parameter=case_parameter,
             classname=class_name,
             result=result,
-            time=time,
+            time=time_str,
             style=style,
             **(self.extra_options or {}),
         ))

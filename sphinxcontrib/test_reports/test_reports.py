@@ -2,6 +2,7 @@
 import os
 
 import sphinx
+import sphinx_needs
 from docutils.parsers.rst import directives
 from packaging.version import Version
 from sphinx.application import Sphinx
@@ -47,7 +48,7 @@ else:
 
 # fmt: on
 
-VERSION = "1.1.1"
+VERSION = "1.3.1"
 
 
 def setup(app: Sphinx) -> dict[str, object]:
@@ -58,6 +59,8 @@ def setup(app: Sphinx) -> dict[str, object]:
     * test_report
     """
 
+    app.add_config_value("tr_file_option", "file", "html")
+    
     log = logger
     log.info("Setting up sphinx-test-reports extension")
 
@@ -189,27 +192,45 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
     """
     sphinx-needs configuration
     """
+    
+    # Check sphinx-needs version to determine if schema is needed
+    try:
+        needs_version = Version(sphinx_needs.__version__)
+        use_schema = needs_version >= Version("6.0.0")
+    except ImportError:
+        # If we can't determine version, assume older version
+        use_schema = False
 
     # Extra options
     # For details read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_extra_option
 
-    cast(object, add_extra_option(app, "file"))
+    cast(object, add_extra_option(app, getattr(config, "tr_file_option", "file")))
     cast(object, add_extra_option(app, "suite"))
     cast(object, add_extra_option(app, "case"))
     cast(object, add_extra_option(app, "case_name"))
     cast(object, add_extra_option(app, "case_parameter"))
     cast(object, add_extra_option(app, "classname"))
-    cast(object, add_extra_option(app, "time"))
 
-    cast(object, add_extra_option(app, "suites"))
-    cast(object, add_extra_option(app, "cases"))
-
-    cast(object, add_extra_option(app, "passed"))
-    cast(object, add_extra_option(app, "skipped"))
-    cast(object, add_extra_option(app, "failed"))
-    cast(object, add_extra_option(app, "errors"))
-    cast(object, add_extra_option(app, "result"))  # used by test cases only
+    # Add schema parameter conditionally based on sphinx-needs version
+    if use_schema:
+        add_extra_option(app, "time", schema={"type": "string"})
+        add_extra_option(app, "suites", schema={"type": "integer"})
+        add_extra_option(app, "cases", schema={"type": "integer"})
+        add_extra_option(app, "passed", schema={"type": "integer"})
+        add_extra_option(app, "skipped", schema={"type": "integer"})
+        add_extra_option(app, "failed", schema={"type": "integer"})
+        add_extra_option(app, "errors", schema={"type": "integer"})
+        add_extra_option(app, "result", schema={"type": "string"})
+    else:
+        add_extra_option(app, "time")
+        add_extra_option(app, "suites")
+        add_extra_option(app, "cases")
+        add_extra_option(app, "passed")
+        add_extra_option(app, "skipped")
+        add_extra_option(app, "failed")
+        add_extra_option(app, "errors")
+        add_extra_option(app, "result")
 
     # Extra dynamic functions
     # For details about usage read
