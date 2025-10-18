@@ -54,20 +54,18 @@ class TestCaseDirective(TestCommonDirective):
         if case_full_name is None and class_name is None:
             raise TestReportInvalidOptionError("Case or classname not given!")
 
-        # Typing aliases
-        testsuite_dict = Dict[str, object]
-        testcase_dict = Dict[str, object]
-
         # Gather candidate suites
-        candidate_suites: List[testsuite_dict] = []
+        candidate_suites: List[Dict[str, object]] = []
         if results is not None:
-            candidate_suites = cast(List[testsuite_dict], results)
+            candidate_suites = cast(List[Dict[str, object]], results)
 
         # Handle nested selection if requested
-        selected_suite: Optional[testsuite_dict] = None
+        selected_suite: Optional[Dict[str, object]] = None
         if nested and suite_count >= 0 and candidate_suites:
             root_suite = candidate_suites[0]
-            nested_suites = cast(List[testsuite_dict], root_suite.get("testsuites", []))
+            nested_suites = cast(
+                List[Dict[str, object]], root_suite.get("testsuites", [])
+            )
             if 0 <= suite_count < len(nested_suites):
                 selected_suite = nested_suites[suite_count]
 
@@ -84,8 +82,8 @@ class TestCaseDirective(TestCommonDirective):
             )
 
         # Select testcase
-        testcases = cast(List[testcase_dict], selected_suite.get("testcases", []))
-        selected_case: Optional[testcase_dict] = None
+        testcases = cast(List[Dict[str, object]], selected_suite.get("testcases", []))
+        selected_case: Optional[Dict[str, object]] = None
         for case_obj in testcases:
             name = str(case_obj.get("name", ""))
             classname_val = str(case_obj.get("classname", ""))

@@ -50,7 +50,7 @@ def dict_get(
 
 class JsonParser:
     json_path: str
-    json_data: List[Dict[str, object]]
+    json_data: List[Dict[str | int, object]]
     json_mapping: MappingEntry
 
     def __init__(
@@ -64,8 +64,10 @@ class JsonParser:
             )
 
         with open(self.json_path, encoding="utf-8") as jfile:
-            data_raw = json.load(jfile)  # type: ignore[assignment]
-            data: List[Dict[str, object]] = cast(List[Dict[str, object]], data_raw)
+            data_raw: object = json.load(jfile)
+            data: List[Dict[str | int, object]] = cast(
+                List[Dict[str | int, object]], data_raw
+            )
 
         if not isinstance(data, list):
             raise TypeError("Expected top-level JSON to be a list of dicts")

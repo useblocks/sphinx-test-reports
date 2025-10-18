@@ -20,7 +20,7 @@ from typing import (
 
 from docutils.parsers.rst import Directive
 from sphinx.util import logging
-from sphinx_needs.config import NeedsSphinxConfig
+from sphinx_needs.config import NeedsSphinxConfig  # type: ignore[import-untyped]
 
 from sphinxcontrib.test_reports.exceptions import (
     SphinxError,
@@ -32,9 +32,9 @@ from sphinxcontrib.test_reports.junitparser import JUnitParser
 sn_major_version = int(version("sphinx-needs").split('.')[0])
 
 if sn_major_version >= 4:
-    from sphinx_needs.api.need import _make_hashed_id
+    from sphinx_needs.api.need import _make_hashed_id  # type: ignore[import-untyped]
 else:
-    from sphinx_needs.api import make_hashed_id
+    from sphinx_needs.api import make_hashed_id  # type: ignore[import-untyped]
 
 
 # fmt: on
@@ -67,7 +67,7 @@ class TestCommonDirective(Directive):
     """
 
     def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         self.env: _SphinxEnvProtocol = cast(
             _SphinxEnvProtocol, self.state.document.settings.env
         )
@@ -139,7 +139,7 @@ class TestCommonDirective(Directive):
                     if mapping_values
                     else {"testcase": {}, "testsuite": {}}
                 )
-                parser = JsonParser(self.test_file, json_mapping=mapping)
+                parser = JsonParser(self.test_file, json_mapping=mapping)  # type: ignore[arg-type]
             else:
                 parser = JUnitParser(self.test_file)
             testreport_data[self.test_file] = parser.parse()
@@ -152,9 +152,9 @@ class TestCommonDirective(Directive):
         Reads and checks the needed basic data like name, id, links, status, ...
         :return: None
         """
-        self.docname = cast(str, self.state.document.settings.env.docname)
-
-        self.test_name = self.arguments[0]
+        # mypy: explicit type for Any
+        self.docname = self.state.document.settings.env.docname  # type: ignore[misc]
+        self.test_name = cast(str, self.arguments[0])
         self.test_content = "\n".join(self.content)
         if self.name != "test-report":
             self.need_type = self.app.tr_types[self.name][0]
