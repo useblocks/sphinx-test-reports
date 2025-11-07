@@ -15,7 +15,7 @@ jobs:
 
       - name: uv sync
         run: |
-          uv sync --all-group --all-extras
+          uv sync --all-groups --all-extras
 
       - name: Run tests
         run: uv run make coverage
