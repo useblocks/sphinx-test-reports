@@ -10,10 +10,10 @@ import json
 import operator
 import os
 from functools import reduce
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Union
 
 
-def dict_get(root, items, default=None):
+def dict_get(root: dict, items: List[Union[str, int]], default: Any = None) -> Any:
     """
     Access a nested object in root by item sequence.
 
@@ -30,19 +30,26 @@ def dict_get(root, items, default=None):
 
 
 class JsonParser:
-    def __init__(self, json_path, *args, **kwargs):
-        self.json_path = json_path
+    def __init__(
+        self,
+        json_path: str,
+        *args: object,
+        **kwargs: Dict[str, Dict[str, Tuple[List[Union[str, int]], Any]]],
+    ) -> None:
+        self.json_path: str = json_path
 
         if not os.path.exists(self.json_path):
             raise JsonFileMissing(f"The given file does not exist: {self.json_path}")
 
-        self.json_data = []
+        self.json_data: List[Dict[str, Any]] = []
         with open(self.json_path) as jfile:
             self.json_data = json.load(jfile)
 
-        self.json_mapping = kwargs.get("json_mapping", {})
+        self.json_mapping: Dict[str, Dict[str, Tuple[List[Union[str, int]], Any]]] = (
+            kwargs.get("json_mapping", {})
+        )
 
-    def validate(self):
+    def validate(self) -> bool:
         # For JSON we validate nothing here.
         # But to be compatible with the API, we need to return True
         return True
@@ -55,15 +62,15 @@ class JsonParser:
         :return: list of test suites as dictionaries
         """
 
-        def parse_testcase(json_dict) -> Dict[str, Any]:
-            tc_mapping = self.json_mapping.get("testcase")
+        def parse_testcase(json_dict: Dict[str, Any]) -> Dict[str, Any]:
+            tc_mapping = self.json_mapping.get("testcase", {})
             tc_dict = {
                 k: dict_get(json_dict, v[0], v[1]) for k, v in tc_mapping.items()
             }
             return tc_dict
 
-        def parse_testsuite(json_dict) -> Dict[str, Any]:
-            ts_mapping = self.json_mapping.get("testsuite")
+        def parse_testsuite(json_dict: Dict[str, Any]) -> Dict[str, Any]:
+            ts_mapping = self.json_mapping.get("testsuite", {})
             ts_dict = {
                 k: dict_get(json_dict, v[0], v[1])
                 for k, v in ts_mapping.items()
@@ -72,7 +79,9 @@ class JsonParser:
             ts_dict.update({"testcases": [], "testsuite_nested": []})
 
             testcases = dict_get(
-                json_dict, ts_mapping["testcases"][0], ts_mapping["testcases"][1]
+                json_dict,
+                ts_mapping.get("testcases", [[], None])[0],
+                ts_mapping.get("testcases", [[], None])[1],
             )
             for tc in testcases:
                 new_testcase = parse_testcase(tc)
@@ -82,7 +91,7 @@ class JsonParser:
 
         # main flow starts here
 
-        result_data = []
+        result_data: List[Dict[str, Any]] = []
 
         for testsuite_data in self.json_data:
             complete_testsuite = parse_testsuite(testsuite_data)
@@ -90,7 +99,7 @@ class JsonParser:
 
         return result_data
 
-    def docutils_table(self):
+    def docutils_table(self) -> None:
         pass
 
 
