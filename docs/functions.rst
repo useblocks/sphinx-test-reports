@@ -10,7 +10,7 @@ from Sphinx-Needs documentation to know how to use them.
 
 
 tr_link
----------
+-------
 Links a need (e.g testcase) automatically to other needs, which have a specific value in a given option.
 
 **Usage**::
@@ -25,8 +25,8 @@ Links a need (e.g testcase) automatically to other needs, which have a specific 
 
 ``tr_link`` needs the following arguments:
 
-* **source_option**: Name of an option of the test-need, which is used for comparision. E.g. ``classname``.
-* **target_option**: Name of an option of all other needs, which is used for comparision. E.g. ``title``.
+* **source_option**: Name of an option of the test-need, which is used for comparison. E.g. ``classname``.
+* **target_option**: Name of an option of all other needs, which is used for comparison. E.g. ``title``.
 
 The function reads the ``target_option`` from the need, where it is used.
 Then it goes through **all** other needs and checks if the value of their ``source_option`` is equal to
@@ -34,7 +34,7 @@ the ``target_option``.
 If this is the case, their IDs get stored and finally returned.
 
 ``source_option`` can also reference an option with comma separated values.
-In this case a comparions is performed for each value, which may lead to multiple links.
+In this case a comparison is performed for each value, which may lead to multiple links.
 
 **Example**::
 
@@ -81,3 +81,25 @@ In this case a comparions is performed for each value, which may lead to multipl
 
 .. needflow::
    :tags: link_example
+
+
+tr_link_match
+-------------
+
+Similar to ``tr_link``, but allows using a regex to find needs to link to.  
+When using ``tr_link_match``, the value of the ``source_option`` is compiled as a regular expression, and all other needs
+whose ``target_option`` values match this pattern are linked.
+
+**Usage**::
+
+   .. test-case:: Tests/TestSuite.TestCase/*
+      :id: TESTLINK_1
+      :results: "[[tr_link_match('title', 'case')]]",
+
+The example above will link all test results which have a classname starting with ``Tests/TestSuite.TestCase`` 
+(given that the ``results`` are defined as ``needs_extra_links`` in the ``conf.py``).
+
+``tr_link_match`` needs the following arguments:
+
+* **source_option**: Name of an option of the test-need (regex is taken from its value).
+* **target_option**: Name of an option in other needs, which must match the regex in ``source_option``.
