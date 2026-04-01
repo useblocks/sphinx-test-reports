@@ -3,9 +3,63 @@
 Changelog
 =========
 
-1.2.1
------
+Unreleased
+----------
 :Released: under development
+
+.. _`release:1.3.2`:
+
+1.3.2
+-----
+:Released: 13.11.2025
+
+This release improves Sphinx-Test-Reports compatibility with Sphinx and
+fixes some Sphinx related deprecation warnings.
+
+* Bugfix: Fix deprecation warnings with Sphinx 8.
+  `#128 <https://github.com/useblocks/sphinx-test-reports/pull/128>`_
+
+.. _`release:1.3.1`:
+
+1.3.1
+-----
+:Released: 02.10.2025
+:Full Changelog: `v1.3.0...v1.3.1 <https://github.com/useblocks/sphinx-test-reports/compare/1.3.0...ac4d771777b0af46919acf31f7cd34178d0b46d5>`__
+
+* Support Sphinx-Needs 6 schema validation
+  `#122 <https://github.com/useblocks/sphinx-test-reports/pull/122>`_
+
+1.3.0
+-----
+:Released: 28.09.2025
+
+This release makes Sphinx-Test-Reports compatible with Sphinx-Needs 5.1 and
+introduces several maintenance improvements.
+
+* Improvement: Support for Sphinx-Needs 5.1.
+  `#119 <https://github.com/useblocks/sphinx-test-reports/pull/119>`_
+* Bugfix: Fix plantuml on RTD.
+  `#115 <https://github.com/useblocks/sphinx-test-reports/pull/115>`_
+* Maintenance: Removed py38 from classifiers.
+  `#116 <https://github.com/useblocks/sphinx-test-reports/pull/116>`_
+* Maintenance: Activate mypy.
+  `#113 <https://github.com/useblocks/sphinx-test-reports/pull/113>`_
+* Maintenance: Remove baumpfleger.
+  `#112 <https://github.com/useblocks/sphinx-test-reports/pull/112>`_
+* Maintenance: Clean makefile.
+  `#111 <https://github.com/useblocks/sphinx-test-reports/pull/111>`_
+* Maintenance: Use flit.
+  `#110 <https://github.com/useblocks/sphinx-test-reports/pull/110>`_
+* Maintenance: Added all_good job.
+  `#109 <https://github.com/useblocks/sphinx-test-reports/pull/109>`_
+* Maintenance: Add standard hooks.
+  `#106 <https://github.com/useblocks/sphinx-test-reports/pull/106>`_
+* Maintenance: Add yamlfmt.
+  `#105 <https://github.com/useblocks/sphinx-test-reports/pull/105>`_
+* Maintenance: Introduce ruff.
+  `#104 <https://github.com/useblocks/sphinx-test-reports/pull/104>`_
+* Maintenance: Add taplo pre-commit.
+  `#103 <https://github.com/useblocks/sphinx-test-reports/pull/103>`_
 
 
 1.2.0
