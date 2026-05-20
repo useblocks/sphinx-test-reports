@@ -87,27 +87,7 @@ class TestSuiteDirective(TestCommonDirective):
             ):
                 self.extra_options[prop_name] = str(prop_value)
 
-        # Process tr_property_link_types: map suite-level property values
-        # to sphinx-needs links, consistent with TestCaseDirective behaviour.
-        tr_property_link_types = getattr(self.app.config, "tr_property_link_types", {})
-        for prop_name, link_field in tr_property_link_types.items():
-            prop_value = suite_properties.get(prop_name, "")
-            if prop_value:
-                link_ids = ";".join(
-                    id_val.strip() for id_val in prop_value.split(",") if id_val.strip()
-                )
-                if link_field == "links":
-                    existing = self.test_links
-                else:
-                    existing = self.extra_options.get(link_field, "")
-                if existing:
-                    merged = existing + ";" + link_ids
-                else:
-                    merged = link_ids
-                if link_field == "links":
-                    self.test_links = merged
-                else:
-                    self.extra_options[link_field] = merged
+        self._apply_property_links(suite_properties)
 
         main_section = []
         docname = self.state.document.settings.env.docname
