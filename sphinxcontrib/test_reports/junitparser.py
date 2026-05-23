@@ -72,6 +72,12 @@ class JUnitParser:
                 # tc_dict["text"] = re.sub(r"[\n\t]*", "", result.text)  # Removes newlines and tabs
                 tc_dict["text"] = result.text
                 tc_dict["message"] = ""
+            elif hasattr(testcase, "error"):
+                result = testcase.error
+                tc_dict["result"] = "error"
+                tc_dict["type"] = result.attrib.get("type", "unknown")
+                tc_dict["text"] = result.text or ""
+                tc_dict["message"] = ""
             else:
                 tc_dict["result"] = "passed"
                 tc_dict["type"] = ""
