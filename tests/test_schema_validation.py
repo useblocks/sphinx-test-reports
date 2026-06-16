@@ -58,3 +58,44 @@ def test_strict_schema_ignores_unpopulated_test_report_fields(test_app):
         "Strict schema flagged unpopulated sphinx-test-reports fields: "
         f"{json.dumps(report['validation_warnings'], indent=2)}"
     )
+
+
+@pytest.mark.skipif(
+    not SN_SUPPORTS_SCHEMAS,
+    reason="needs_schema_definitions requires sphinx-needs>=6.0.0",
+)
+@pytest.mark.parametrize(
+    "test_app",
+    [{"buildername": "html", "srcdir": "doc_test/schema_strictness_status"}],
+    indirect=True,
+)
+def test_strict_schema_allows_constrained_field_in_local_schema(test_app):
+    """Counterpart to the test above: a field that *is* part of the local schema
+    validates correctly while the unpopulated sphinx-test-reports fields stay
+    ignored.
+
+    The schema evaluates the core ``status`` field (``const: open``, and marks
+    it ``required``) and forbids every other field
+    (``unevaluatedProperties: false``). The single need sets ``status: open``
+    and leaves all sphinx-test-reports fields unpopulated, so the build must
+    report no violation.
+    """
+    app = test_app
+    app.build()
+
+    assert app.statuscode == 0
+
+    report_file = Path(app.outdir, "schema_violations.json")
+    assert report_file.exists(), "sphinx-needs did not write schema_violations.json"
+
+    report = json.loads(report_file.read_text(encoding="utf-8"))
+
+    # The need was validated ...
+    assert report.get("validated_needs_count", 0) >= 1
+
+    # ... and the constrained-and-populated 'status' field plus the stripped
+    # (unpopulated) sphinx-test-reports fields together produce no violation.
+    assert report["validation_warnings"] == {}, (
+        "Strict schema with a constrained 'status' field reported violations: "
+        f"{json.dumps(report['validation_warnings'], indent=2)}"
+    )
