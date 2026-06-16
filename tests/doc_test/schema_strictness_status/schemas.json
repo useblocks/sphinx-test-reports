@@ -10,7 +10,9 @@
               "const": "open"
             }
           },
-          "required": ["status"],
+          "required": [
+            "status"
+          ],
           "unevaluatedProperties": false
         }
       }
