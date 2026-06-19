@@ -92,37 +92,22 @@ In the last years, we have created additional information and extensions, which 
 
     .. grid-item-card::
         :columns: 12 6 6 6
-        :link: https://sphinx-needs.readthedocs.io/en/latest/
-        :img-top: /_static/sphinx-needs-card.png
-        :class-card: border
-
-        Sphinx-Needs.com
-        ^^^^^^^^^^^^^^^^
-        The website presents the essential Sphinx-Needs functions and related extensions.
-
-        Also, it is a good entry point to understand the benefits and get an idea about the complete ecosystem of Sphinx-Needs.
-        +++
-
-        .. button-link:: https://sphinx-needs.readthedocs.io/en/latest/
-            :color: primary
-            :outline:
-            :align: center
-            :expand:
-
-            :octicon:`globe;1em;sd-text-primary` Sphinx-Needs.com
-
-    .. grid-item-card::
-        :columns: 12 6 6 6
-        :link: https://sphinx-needs.readthedocs.io/en/latest/
         :img-top: /_static/sphinx-needs-card.png
         :class-card: border
 
         Sphinx-Needs
         ^^^^^^^^^^^^
-        Create, update, link, filter and present need objects like Requirements, Specifications, Bugs and many more.
-
-        The base extension provides all of its functionality under the MIT license for free.
+        Create, update, link, filter and present need objects like Requirements,
+        Specifications, Bugs and many more — the free, MIT-licensed base extension.
         +++
+
+        .. button-link:: https://useblocks.com/open-source/sphinx-needs
+            :color: primary
+            :outline:
+            :align: center
+            :expand:
+
+            :octicon:`globe;1em;sd-text-primary` Website @ useblocks.com
 
         .. button-link:: https://sphinx-needs.readthedocs.io/en/latest/
             :color: primary
