@@ -92,8 +92,11 @@ In the last years, we have created additional information and extensions, which 
 
     .. grid-item-card::
         :columns: 12 6 6 6
-        :img-top: /_static/sphinx-needs-card.png
         :class-card: border
+
+        .. image:: /_static/sphinx-needs-card.png
+            :height: 120px
+            :align: center
 
         Sphinx-Needs
         ^^^^^^^^^^^^
@@ -120,8 +123,11 @@ In the last years, we have created additional information and extensions, which 
     .. grid-item-card::
         :columns: 12 6 6 6
         :link: https://sphinx-test-reports.readthedocs.io/en/latest/
-        :img-top: /_static/sphinx-test-reports-logo.png
         :class-card: border
+
+        .. image:: /_static/sphinx-test-reports-logo.png
+            :height: 120px
+            :align: center
 
         Sphinx-Test-Reports
         ^^^^^^^^^^^^^^^^^^^
@@ -150,8 +156,11 @@ we have created other Sphinx extensions to support the work of teams in the auto
     .. grid-item-card::
         :columns: 12 6 6 6
         :link: https://sphinx-collections.readthedocs.io/en/latest/
-        :img-top: /_static/sphinx_collections_logo.png
         :class-card: border
+
+        .. image:: /_static/sphinx_collections_logo.png
+            :height: 120px
+            :align: center
 
         Sphinx Collections
         ^^^^^^^^^^^^^^^^^^
@@ -171,8 +180,11 @@ we have created other Sphinx extensions to support the work of teams in the auto
     .. grid-item-card::
         :columns: 12 6 6 6
         :link: https://sphinx-bazel.readthedocs.io/en/latest/
-        :img-top: /_static/sphinx_bazel_logo.png
         :class-card: border
+
+        .. image:: /_static/sphinx_bazel_logo.png
+            :height: 120px
+            :align: center
 
         Sphinx Bazel
         ^^^^^^^^^^^^
