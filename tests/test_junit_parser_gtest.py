@@ -125,3 +125,13 @@ def test_absent_optional_attributes_are_empty_not_missing():
     assert case["value_param"] == ""
     assert case["type_param"] == ""
     assert case["timestamp"] == ""
+
+
+def test_a_testcase_without_any_properties_yields_an_empty_dict():
+    """Known dialect attributes must not leak in as properties.
+
+    ``Works/0`` carries ``value_param``/``type_param`` and no ``<properties>``
+    element, so the result has to be an empty dict rather than those two
+    attributes.
+    """
+    assert _case("ParamTest/0", "Works/0")["properties"] == {}
