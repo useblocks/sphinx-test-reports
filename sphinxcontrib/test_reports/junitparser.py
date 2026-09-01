@@ -50,13 +50,15 @@ TESTSUITE_KNOWN_ATTRIBUTES = frozenset(
 RESULT_PART_KINDS = ("skipped", "failure", "error")
 
 
-def _child_tag(child):
+def _child_tag(child: objectify.ObjectifiedElement) -> str | None:
     """Tag name of an lxml child, or ``None`` for comments and instructions."""
     tag = child.tag
     return tag if isinstance(tag, str) else None
 
 
-def _collect_properties(xml_object, known_attributes):
+def _collect_properties(
+    xml_object: objectify.ObjectifiedElement, known_attributes: frozenset[str]
+) -> dict[str, str]:
     """Read ``RecordProperty`` values from both dialect forms.
 
     Unknown attributes are the legacy/attribute form; ``<properties>`` children
@@ -77,7 +79,9 @@ def _collect_properties(xml_object, known_attributes):
     return properties
 
 
-def _collect_result_parts(testcase):
+def _collect_result_parts(
+    testcase: objectify.ObjectifiedElement,
+) -> list[dict[str, str]]:
     """Every ``<failure>``/``<error>``/``<skipped>`` child, in document order.
 
     googletest emits one element per failed assertion and ``GTEST_SKIP`` can
@@ -85,7 +89,7 @@ def _collect_result_parts(testcase):
     The per-part ``type``/``message`` defaults match what the flat, historical
     ``type``/``message`` keys have always reported for that kind.
     """
-    parts = []
+    parts: list[dict[str, str]] = []
     for child in testcase.iterchildren():
         kind = _child_tag(child)
         if kind not in RESULT_PART_KINDS:
@@ -103,7 +107,7 @@ def _collect_result_parts(testcase):
     return parts
 
 
-def _collect_captured_output(xml_object, tag):
+def _collect_captured_output(xml_object: objectify.ObjectifiedElement, tag: str) -> str:
     """Join every ``<system-out>``/``<system-err>`` block of an element."""
     blocks = [
         child.text or ""
@@ -189,9 +193,10 @@ class JUnitParser:
                 tc_dict["text"] = first_part["text"]
                 tc_dict["message"] = first_part["message"]
             else:
+                # No result child at all, so the case either passed or never
+                # ran; failures, errors and skips are all handled above.
                 # googletest reports a disabled test as status="notrun"
-                # (result="suppressed") with no result child at all -- which
-                # otherwise reads as a pass.
+                # (result="suppressed"), which otherwise reads as a pass.
                 disabled = (
                     testcase.attrib.get("status") == "notrun"
                     or testcase.attrib.get("result") == "suppressed"
