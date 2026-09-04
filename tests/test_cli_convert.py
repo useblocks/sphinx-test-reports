@@ -61,12 +61,18 @@ class TestNoSphinxImport:
 
 class TestEnvelope:
     def test_output_passes_the_sphinx_needs_schema(self, tmp_path):
-        from sphinx_needs.needsfile import check_needs_data
+        """The output must validate against sphinx-needs' own needs.json schema."""
+        needsfile = pytest.importorskip("sphinx_needs.needsfile")
+        if not hasattr(needsfile, "check_needs_data"):
+            # Older sphinx-needs releases do not ship the schema check; the
+            # envelope contract itself is version-independent, so skip rather
+            # than pin the whole suite to the newest sphinx-needs.
+            pytest.skip("sphinx-needs has no check_needs_data")
 
         code, data = _convert(tmp_path)
 
         assert code == 0
-        assert check_needs_data(data).schema == []
+        assert needsfile.check_needs_data(data).schema == []
 
     def test_envelope_carries_project_and_current_version(self, tmp_path):
         _, data = _convert(tmp_path, "--project", "Score Docs-as-Code")
