@@ -1,5 +1,7 @@
 :hide-navigation:
 
+.. _configuration:
+
 Configuration
 =============
 The following options can be set inside the ``conf.py`` file of your Sphinx project.
@@ -401,3 +403,88 @@ An example of a JSON file, which supports the below configuration, can be seen i
          }
       }
    }
+
+Declarative configuration (ubproject.toml)
+------------------------------------------
+.. versionadded:: 1.5.0
+
+All of the above can also be configured declaratively, in the
+``[test_reports]`` section of your project's ``ubproject.toml`` -- the same
+shared file other useblocks tooling (sphinx-needs, sphinx-codelinks,
+sphinx-mounts, ubCode) reads. It describes the project once, so every tool
+acting on it works from the same settings instead of each restating them.
+
+.. code-block:: toml
+
+   [test_reports]
+   file_option = "report_file"
+   source_file_option = "file"
+   source_line_option = "line"
+   deterministic_case_ids = true
+   extra_options = ["more_info", "priority"]
+   property_link_types = { request = "req" }
+   rootdir = "docs"
+
+   # Need types: named tables (recommended) ...
+   [test_reports.case]
+   directive = "test-case"
+   type = "testcase"
+   name = "Test-Case"
+   prefix = "TC_"
+   color = "#999999"
+   style = "rectangle"
+
+   # ... or the positional list spelling of conf.py:
+   # case = ["test-case", "testcase", "Test-Case", "TC_", "#999999", "rectangle"]
+
+**Keys.** Every key is named like its ``tr_*`` config value without the prefix
+(``file_option`` configures ``tr_file_option``, and so on). A key carrying the
+wrong type is an error -- that is the typo class this validation exists to
+catch. An *unknown* key is reported as a warning and ignored: the file is
+shared with tools on independent release cadences, so a key this version does
+not model must not take your build down. Add ``"test_reports.unknown_key"`` to
+Sphinx's ``suppress_warnings`` to silence that report in a project that builds
+with ``-W``.
+
+Sub-tables belonging to other tools are left alone. Settings for converting
+test reports into a ``needs.json`` outside Sphinx live under
+``[test_reports.convert]``, which this extension does not read.
+
+**Precedence.** ``-D`` on the ``sphinx-build`` command line beats the TOML
+file, which beats ``conf.py``, which beats the built-in default. The
+declarative file is the source of truth for the project; the command line stays
+the per-invocation escape hatch.
+
+**Paths.** Relative values of ``rootdir`` and ``report_template`` are resolved
+against the directory containing the TOML file (not against ``conf.py`` or the
+working directory), so both consumers resolve them identically and the file
+stays self-describing when moved as a unit.
+
+**Deterministic IDs.** A build that imports a ``needs.json`` carrying
+deterministic case IDs, next to locally created test-case needs, must set
+``deterministic_case_ids = true`` so both ID schemes agree.
+
+.. _tr_config_from_toml:
+
+tr_config_from_toml
+~~~~~~~~~~~~~~~~~~~
+.. versionadded:: 1.5.0
+
+Name of the declarative configuration file whose ``[test_reports]`` section is
+applied to the ``tr_*`` values above. Defaults to ``ubproject.toml``.
+
+With the default name, the file is searched for in your ``confdir`` and its
+parent directories, stopping at the project root (a directory holding ``.git``
+or ``pyproject.toml``). That is what lets the canonical layout work -- the
+shared ``ubproject.toml`` at the repository root, ``conf.py`` in ``docs/`` --
+and lets a tool started anywhere below the root find exactly the same file by
+searching upward in the same way. A missing default file is not an error.
+
+Set to any other value to name a file explicitly; it is resolved against the
+``confdir``, is not searched for, and a warning is emitted if it does not
+exist. Set to ``None`` to switch declarative configuration off entirely.
+
+.. code-block:: python
+
+   tr_config_from_toml = "../ubproject.toml"   # explicit path
+   tr_config_from_toml = None                  # disable
