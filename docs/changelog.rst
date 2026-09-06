@@ -29,6 +29,10 @@ Unreleased
   root;
   the new ``tr_config_from_toml`` names or disables it. Precedence is ``-D`` >
   ``ubproject.toml`` > ``conf.py`` > default. See :ref:`tr_config_from_toml`.
+* Feature: New ``test-reports convert`` command line interface, converting
+  test-result XML into a ``needs.json`` without running Sphinx, so the
+  conversion can run as a cacheable build action and the documentation build
+  only imports the result. See :ref:`cli`.
 * Support: Python 3.10 is no longer supported. It reached the end of upstream
   support, and dropping it lets the package read TOML with ``tomllib`` from the
   standard library instead of carrying a backport.
