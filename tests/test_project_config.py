@@ -19,9 +19,11 @@ from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
 from sphinxcontrib.test_reports.projectconfig import (
     BRIDGE_KEYS,
     CONVERT_TABLE,
+    DEFAULT_FIELD_NAMES,
     DEFAULT_TOML_FILENAME,
     SECTION,
     TomlConfigError,
+    field_names,
     find_project_config,
     load_project_config,
 )
@@ -77,18 +79,13 @@ class TestLoader:
 
             [test_reports.convert]
             project = "demo"
-            need_type = "check"
             tags = ["ci"]
             """,
         )
         reported = []
         section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME, reported.append)
         assert reported == []
-        assert section[CONVERT_TABLE] == {
-            "project": "demo",
-            "need_type": "check",
-            "tags": ["ci"],
-        }
+        assert section[CONVERT_TABLE] == {"project": "demo", "tags": ["ci"]}
         assert CONVERT_TABLE not in BRIDGE_KEYS
 
     @pytest.mark.parametrize(
@@ -135,6 +132,72 @@ class TestLoader:
             """,
         )
         with pytest.raises(TomlConfigError, match="need_type"):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+
+    def test_a_missing_side_is_compared_at_its_default(self, tmp_path):
+        # A customised case next to a convert table without need_type is a
+        # disagreement too: the converter would write the default type.
+        _write(
+            tmp_path,
+            """
+            [test_reports.convert]
+            project = "p"
+
+            [test_reports.case]
+            directive = "test-case"
+            type = "check"
+            name = "Check"
+            prefix = "CH_"
+            color = "#999999"
+            style = "rectangle"
+            """,
+        )
+        with pytest.raises(TomlConfigError, match="'testcase'.*'check'"):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+        # ... and the mirror: need_type set, case left at its default.
+        _write(tmp_path, '[test_reports.convert]\nneed_type = "check"\n')
+        with pytest.raises(TomlConfigError, match="'check'.*'testcase'"):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+
+    def test_without_a_convert_table_the_case_type_is_free(self, tmp_path):
+        # A project that only builds may name its case type as it likes.
+        _write(
+            tmp_path,
+            """
+            [test_reports.case]
+            directive = "test-case"
+            type = "check"
+            name = "Check"
+            prefix = "CH_"
+            color = "#999999"
+            style = "rectangle"
+            """,
+        )
+        assert (
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)["case"][1] == "check"
+        )
+
+    def test_empty_link_property_names_are_rejected_by_the_loader(self, tmp_path):
+        # One verdict for both consumers: the build refuses what the converter
+        # would refuse.
+        _write(
+            tmp_path, '[test_reports.convert]\nlink_properties = { Verifies = "" }\n'
+        )
+        with pytest.raises(TomlConfigError, match="link_properties"):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+
+    def test_field_names_default_to_the_build_s(self, tmp_path):
+        _write(tmp_path, "[test_reports]\nsource_file_option = 'src'\n")
+        section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+        names = field_names(section)
+        assert names["source_file_option"] == "src"
+        assert names["file_option"] == DEFAULT_FIELD_NAMES["file_option"] == "file"
+        assert names["source_line_option"] == "case_line"
+
+    def test_colliding_field_names_are_rejected(self, tmp_path):
+        # file (report path) and file (source path) cannot share a field.
+        _write(tmp_path, "[test_reports]\nsource_file_option = 'file'\n")
+        with pytest.raises(TomlConfigError, match="both name the need field 'file'"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
 
     def test_need_type_and_case_type_agreeing_is_fine(self, tmp_path):

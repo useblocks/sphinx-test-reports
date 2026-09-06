@@ -15,39 +15,68 @@ import re
 #: GitHub and GitHub-compatible forges. GitLab needs ``{base}/-/blob/...``.
 DEFAULT_URL_PATTERN = "{base}/blob/{commit}/{file}#L{line}"
 
-#: ``ssh://git@host[:port]/org/repo.git``. The port belongs to the ssh
+#: The part after ``scheme://`` of an ``ssh://`` or ``git://`` remote:
+#: ``[user@]host[:port]/org/repo[.git]``. The port belongs to the transport
 #: endpoint, not to the web UI, so it must not survive into the browsable base
 #: -- and must not be mistaken for the first path segment.
-_SSH_URL = re.compile(
-    r"^ssh://(?:[^@/]+@)?(?P<host>[^:/]+)(?::\d+)?/(?P<path>.+?)(?:\.git)?/?$"
+_SCHEME_REMOTE = re.compile(
+    r"^(?:[^@/]+@)?(?P<host>[^:/]+)(?::\d+)?/(?P<path>.+?)(?:\.git)?/?$"
 )
 
 #: ``git@host:org/repo.git`` and bare ``host/org/repo``.
 _SCP_STYLE = re.compile(r"^(?:[^@/]+@)?(?P<host>[^:/]+)[:/](?P<path>.+?)(?:\.git)?/?$")
+
+#: Placeholders a URL pattern may use, with representative values for checking
+#: a pattern before any need is built.
+_PATTERN_FIELDS = {"base": "https://h/r", "commit": "c", "file": "f", "line": "1"}
 
 
 def normalise_remote_url(remote_url: str) -> str:
     """Turn a git remote into a browsable ``https`` base URL.
 
     An already-browsable URL is returned unchanged apart from a trailing
-    ``.git``/``/``; anything unrecognised is passed through, so an explicitly
-    configured base is never mangled.
+    ``.git``/``/``; ``ssh://`` and ``git://`` remotes and scp-style
+    ``git@host:path`` become ``https://host/path``. Anything unrecognised -- an
+    unknown scheme, a shape none of the patterns match -- is passed through, so
+    an explicitly configured base is never mangled.
     """
     url = remote_url.strip()
     if not url:
         return ""
 
-    if url.startswith(("http://", "https://")):
-        stripped = url.rstrip("/")
-        return stripped.removesuffix(".git")
-
-    match = _SSH_URL.match(url) or _SCP_STYLE.match(url)
-    if match is None:
+    scheme, separator, rest = url.partition("://")
+    if separator:
+        if scheme in ("http", "https"):
+            return url.rstrip("/").removesuffix(".git")
+        if scheme in ("ssh", "git"):
+            match = _SCHEME_REMOTE.match(rest)
+            if match is not None:
+                return f"https://{match.group('host')}/{match.group('path')}"
         return url.rstrip("/")
 
-    host = match.group("host")
-    path = match.group("path")
-    return f"https://{host}/{path}"
+    match = _SCP_STYLE.match(url)
+    if match is None:
+        return url.rstrip("/")
+    return f"https://{match.group('host')}/{match.group('path')}"
+
+
+def check_url_pattern(pattern: str) -> str | None:
+    """Why *pattern* cannot be used as a source-URL template, or ``None``.
+
+    ``str.format`` only fails when a URL is actually built -- that is, on the
+    first case that carries a file -- and it fails with a traceback. Checking
+    the template up front turns a typo in a flag or in ``ubproject.toml`` into
+    a configuration error at the start of the run.
+    """
+    try:
+        pattern.format(**_PATTERN_FIELDS)
+    except KeyError as error:
+        allowed = ", ".join(f"{{{name}}}" for name in _PATTERN_FIELDS)
+        missing = str(error).strip("'")  # KeyError's str is the quoted key
+        return f"unknown placeholder {{{missing}}}; the placeholders are {allowed}"
+    except (IndexError, ValueError) as error:
+        return f"malformed template ({error}); braces must be balanced and named"
+    return None
 
 
 def source_url(

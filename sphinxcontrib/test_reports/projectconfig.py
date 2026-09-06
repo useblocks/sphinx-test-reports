@@ -13,7 +13,10 @@ Keys fall into two groups:
 
 * the Sphinx-facing configuration (:data:`BRIDGE_KEYS`), spelled like the
   ``tr_*`` config values without the prefix, which the extension applies at
-  ``config-inited``;
+  ``config-inited``. The converter reads the three field-name keys among them
+  (:data:`FIELD_NAME_KEYS`) and ``extra_options``, so the needs it writes have
+  the shape of the needs the build creates and carry exactly the fields the
+  build accepts;
 * the ``[test_reports.convert]`` sub-table (:data:`CONVERSION_KEYS`): how test
   reports are turned into a ``needs.json``. The Sphinx bridge never applies it
   to a ``tr_*`` value, but the build validates it like every other key, so a
@@ -125,6 +128,24 @@ CONVERSION_KEYS = (
     "commit",
     "url_pattern",
 )
+
+#: The three renameable need fields and their default names -- the field
+#: carrying the XML *report* path, and the two carrying the test's *source*
+#: location. The build registers these names (``tr_file_option``,
+#: ``tr_source_file_option``, ``tr_source_line_option``) and the converter
+#: writes them, so an imported need and a locally created one have the same
+#: shape. Both sides take the defaults from here.
+FIELD_NAME_KEYS = ("file_option", "source_file_option", "source_line_option")
+DEFAULT_FIELD_NAMES: dict[str, str] = {
+    "file_option": "file",
+    "source_file_option": "case_file",
+    "source_line_option": "case_line",
+}
+
+#: Need type of a test case when neither consumer is told otherwise: the
+#: converter's ``need_type`` default and the ``type`` of the build's default
+#: ``case`` entry. Both defaults live here so they cannot drift apart.
+DEFAULT_NEED_TYPE = "testcase"
 
 #: Expected Python type per ``[test_reports.convert]`` key.
 _CONVERT_KEY_TYPES: dict[str, type[object]] = {
@@ -367,7 +388,43 @@ def _normalise_section(
             normalised[key] = value
 
     _check_need_type_agreement(normalised, path)
+    _check_field_name_collisions(normalised, path)
     return _anchor_paths(normalised, path.parent)
+
+
+def field_names(section: Mapping[str, object]) -> dict[str, str]:
+    """The report-path and source-location field names the section selects.
+
+    Keys are :data:`FIELD_NAME_KEYS`; a key the section does not set falls
+    back to :data:`DEFAULT_FIELD_NAMES`, which is also the build's default.
+    """
+    names = dict(DEFAULT_FIELD_NAMES)
+    for key in FIELD_NAME_KEYS:
+        value = section.get(key)
+        if isinstance(value, str) and value:
+            names[key] = value
+    return names
+
+
+def _check_field_name_collisions(section: Mapping[str, object], path: Path) -> None:
+    """The report-path and source-location fields must have distinct names.
+
+    Two options naming one field would make ``add_need`` receive the same
+    keyword twice (a bare ``TypeError`` inside a directive) and the converter
+    write one value over the other. The build checks its ``conf.py`` values the
+    same way; this covers the declarative spelling for both consumers.
+    """
+    names = field_names(section)
+    seen: dict[str, str] = {}
+    for key, name in names.items():
+        if name in seen:
+            msg = (
+                f"{path}: [{SECTION}] {seen[name]} and {key} both name the need "
+                f"field {name!r}; the report path and the source location must "
+                f"live in different fields"
+            )
+            raise TomlConfigError(msg)
+        seen[name] = key
 
 
 def _normalise_convert_table(
@@ -401,8 +458,29 @@ def _normalise_convert_table(
             _check_list_items(label, item, path)
         elif expected is dict:
             _check_table_values(key, item, path, label)
+            if key == "link_properties":
+                _check_link_properties(item, path)
         normalised[key] = item
     return normalised
+
+
+def _check_link_properties(value: object, path: Path) -> None:
+    """Every ``PROPERTY = "LINK_FIELD"`` pair must have two non-empty names.
+
+    Checked here rather than only in the converter, so the build and the
+    converter give one verdict on the file: a silently dropped pair would send
+    a link field into ``needs.json`` as a plain field instead.
+    """
+    if not isinstance(value, Mapping):
+        return
+    for name, field in value.items():
+        if not str(name).strip() or not (isinstance(field, str) and field.strip()):
+            msg = (
+                f"{path}: [{SECTION}.{CONVERT_TABLE}] link_properties expects "
+                f'PROPERTY = "LINK_FIELD" with both names non-empty, got '
+                f"{name!r} = {field!r}"
+            )
+            raise TomlConfigError(msg)
 
 
 def _check_need_type_agreement(section: Mapping[str, object], path: Path) -> None:
@@ -410,23 +488,28 @@ def _check_need_type_agreement(section: Mapping[str, object], path: Path) -> Non
 
     They are separate keys with separate consumers -- the converter derives the
     need type and the deterministic-ID prefix from ``need_type``, the Sphinx
-    build from ``case``'s ``type`` -- and both default to ``testcase``. Letting
-    them disagree produces exactly the divergence this file exists to prevent:
-    a ``needs.json`` full of ``testcase__*`` needs that the build neither
-    registers nor cross-links.
+    build from ``case``'s ``type`` -- and both default to
+    :data:`DEFAULT_NEED_TYPE`. Letting them disagree produces exactly the
+    divergence this file exists to prevent: a ``needs.json`` full of needs the
+    build neither registers nor cross-links.
+
+    A side that is not set is compared at its default, not skipped: a
+    customised ``case`` next to a ``convert`` table without ``need_type`` is a
+    disagreement too. The check only applies when the ``convert`` table exists
+    -- a project that only builds and never converts may name its case type
+    freely.
     """
     convert = section.get(CONVERT_TABLE)
-    case_type = case_need_type(section)
-    if not isinstance(convert, Mapping) or case_type is None:
+    if not isinstance(convert, Mapping):
         return
-    need_type: object = convert.get("need_type")
-    if not isinstance(need_type, str):
-        return
+    need_type: object = convert.get("need_type", DEFAULT_NEED_TYPE)
+    case_type = case_need_type(section) or DEFAULT_NEED_TYPE
     if case_type != need_type:
         msg = (
             f"{path}: [{SECTION}.{CONVERT_TABLE}] need_type is {need_type!r} but "
-            f"[{SECTION}] case's type is {case_type!r}. Both name the need type "
-            f"of a test case -- need_type for the converter, case for the Sphinx "
+            f"[{SECTION}] case's type is {case_type!r} (each defaulting to "
+            f"{DEFAULT_NEED_TYPE!r} when not set). Both name the need type of a "
+            f"test case -- need_type for the converter, case for the Sphinx "
             f"build -- so they must agree, or the produced needs.json and the "
             f"build describe different need types."
         )

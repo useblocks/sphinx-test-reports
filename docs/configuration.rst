@@ -444,7 +444,13 @@ acting on it works from the same settings instead of each restating them.
    # case = ["test-case", "testcase", "Test-Case", "TC_", "#999999", "rectangle"]
 
 **Keys.** Every key is named like its ``tr_*`` config value without the prefix
-(``file_option`` configures ``tr_file_option``, and so on). A key carrying the
+(``file_option`` configures ``tr_file_option``, and so on). The build applies
+them all; the :ref:`convert command <cli>` reads the three field-name keys
+(``file_option``, ``source_file_option``, ``source_line_option``) and
+``extra_options`` as well, so the needs it writes have the shape of the needs
+the build creates and carry exactly the fields the build accepts -- and it
+refuses a file whose two path fields share a name, as the build does. A key
+carrying the
 wrong type is an error -- that is the typo class this validation exists to
 catch. An *unknown* key is reported as a warning and ignored: the file is
 shared with tools on independent release cadences, so a key this version does

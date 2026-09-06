@@ -31,6 +31,7 @@ from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
 from sphinxcontrib.test_reports.functions import tr_link
 from sphinxcontrib.test_reports.projectconfig import (
     BRIDGE_KEYS,
+    DEFAULT_FIELD_NAMES,
     DEFAULT_TOML_FILENAME,
     SECTION,
     TomlConfigError,
@@ -100,13 +101,17 @@ def setup(app: Sphinx) -> dict[str, object]:
     """
 
     # Name of the need field carrying the path of the XML *report*.
-    app.add_config_value("tr_file_option", "file", "html")
+    app.add_config_value("tr_file_option", DEFAULT_FIELD_NAMES["file_option"], "html")
     # Names of the need fields carrying the *test source* location taken from
     # the <testcase> file/line attributes. Defaults avoid the collision with
     # tr_file_option above; set both to "file"/"line" (and tr_file_option to
     # something else) to match a metamodel that spells them verbatim.
-    app.add_config_value("tr_source_file_option", "case_file", "html")
-    app.add_config_value("tr_source_line_option", "case_line", "html")
+    app.add_config_value(
+        "tr_source_file_option", DEFAULT_FIELD_NAMES["source_file_option"], "html"
+    )
+    app.add_config_value(
+        "tr_source_line_option", DEFAULT_FIELD_NAMES["source_line_option"], "html"
+    )
     # Derive test-case IDs from the source location and case name instead of
     # hashing (type, title, content) -- the latter moves the ID when a test
     # starts failing differently. Off by default: enabling it changes IDs.
@@ -412,6 +417,10 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
     _register_field(app, "failed", schema={"type": "integer"})
     _register_field(app, "errors", schema={"type": "integer"})
     _register_field(app, "result", schema={"type": "string"})
+    # Written by the converter only, so a needs.json it produced imports
+    # without sphinx-needs dropping them as unknown keys.
+    _register_field(app, "result_text", schema={"type": "string"})
+    _register_field(app, "remote_url", schema={"type": "string"})
     # Extra dynamic functions
     # For details about usage read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_dynamic_function

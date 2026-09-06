@@ -89,8 +89,21 @@ class TestPrecedence:
         assert payload["current_version"] == "9.9"
 
     def test_table_overrides_the_builtin_default(self, tmp_path):
+        # A need type other than the default has to be the build's too -- so
+        # the file also names it as the case type.
         code, payload = run_convert(
-            tmp_path, [], toml="[test_reports.convert]\nneed_type = 'check'\n"
+            tmp_path,
+            [],
+            toml="[test_reports.convert]\nneed_type = 'check'\n"
+            """
+            [test_reports.case]
+            directive = "test-case"
+            type = "check"
+            name = "Check"
+            prefix = "CH_"
+            color = "#999999"
+            style = "rectangle"
+            """,
         )
         assert code == 0
         assert _first_need(payload)["type"] == "check"
@@ -120,15 +133,18 @@ class TestPrecedence:
         assert "verifies" in need
         assert "other_field" not in need
 
-    def test_sphinx_side_keys_do_not_leak_into_the_conversion(self, tmp_path):
-        # The same file configures the build. Its bridge keys are none of the
-        # converter's business and must not alter the output.
+    def test_field_names_from_the_section_shape_the_output(self, tmp_path):
+        # The same file configures the build. Its field-name keys are read on
+        # purpose -- the output has to have the shape of the build's needs --
+        # while its other bridge keys are none of the converter's business.
         code, payload = run_convert(
             tmp_path,
             [],
             toml="""
             [test_reports]
             file_option = "report_file"
+            source_file_option = "file"
+            source_line_option = "line"
             extra_options = ["more_info"]
 
             [test_reports.convert]
@@ -137,7 +153,11 @@ class TestPrecedence:
         )
         assert code == 0
         assert payload["project"] == "p"
-        assert "report_file" not in _first_need(payload)
+        need = _first_need(payload)
+        assert need["report_file"].endswith("pytest_data.xml")
+        assert "file" in need and "line" in need
+        assert "case_file" not in need
+        assert "more_info" not in need
 
 
 class TestFileLookup:

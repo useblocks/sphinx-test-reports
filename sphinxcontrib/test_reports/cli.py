@@ -19,7 +19,12 @@ import sys
 from pathlib import Path
 
 from sphinxcontrib.test_reports.junitparser import JUnitParser
-from sphinxcontrib.test_reports.needs_export import DEFAULT_VERSION, build_needs_file
+from sphinxcontrib.test_reports.needs_export import (
+    DEFAULT_VERSION,
+    build_needs_file,
+    iter_cases,
+    optional,
+)
 from sphinxcontrib.test_reports.projectconfig import (
     CONVERSION_KEYS,
     CONVERT_TABLE,
@@ -27,10 +32,15 @@ from sphinxcontrib.test_reports.projectconfig import (
     SECTION,
     TomlConfigError,
     case_need_type,
+    field_names,
     find_project_config,
     load_project_config,
 )
-from sphinxcontrib.test_reports.remote import DEFAULT_URL_PATTERN, normalise_remote_url
+from sphinxcontrib.test_reports.remote import (
+    DEFAULT_URL_PATTERN,
+    check_url_pattern,
+    normalise_remote_url,
+)
 
 #: How the table is spelled in help texts and diagnostics.
 TABLE = f"[{SECTION}.{CONVERT_TABLE}]"
@@ -103,6 +113,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "Promote an XML property to a link field, comma-splitting its value "
             "(repeatable), e.g. PartiallyVerifies=partially_verifies. Given at "
             "all, it replaces the file's link_properties table."
+        ),
+    )
+    convert.add_argument(
+        "--extra-option",
+        action="append",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Export the XML property NAME as a need field (repeatable). Default: "
+            f"the extra_options of [{SECTION}] -- the same list that makes the "
+            "build accept the field. Properties named by neither are reported "
+            "and left out."
         ),
     )
     convert.add_argument(
@@ -185,8 +207,11 @@ def _warn_about_absent_source_lines(path: Path, suites: list) -> None:
     ``junit_family = xunit1`` (or ``legacy``); its default ``xunit2`` filters
     them out, which silently costs the source location of every case.
     """
-    cases = [case for suite in suites for case in suite.get("testcases", [])]
-    if cases and all(case.get("line", -1) == -1 for case in cases):
+    # Walk the report the way the export does: the parser files the cases of
+    # a suite with nested <testsuite> elements under testsuite_nested only, so
+    # looking at the top-level testcases alone goes quiet on nested reports.
+    cases = [case for _suite_name, case in iter_cases(suites)]
+    if cases and all(optional(case.get("line"), -1) == "" for case in cases):
         print(
             f"warning: {path}: no <testcase> carries a 'line' attribute, so no "
             "source location could be recorded. pytest emits file/line only "
@@ -319,6 +344,14 @@ def _pair_requirement(sources: "dict[str, str]", path: "Path | None") -> str:
     return requirement
 
 
+def _extra_options(arguments: argparse.Namespace, section: dict) -> list:
+    """Properties exported as fields: the flag if given, else the section's."""
+    if arguments.extra_option is not None:
+        return list(arguments.extra_option)
+    names = section.get("extra_options", [])
+    return list(names) if isinstance(names, list) else []
+
+
 def _convert(arguments: argparse.Namespace) -> int:
     section, config_path, error = _load_section(arguments)
     if error:
@@ -351,6 +384,17 @@ def _convert(arguments: argparse.Namespace) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
+    problem = check_url_pattern(str(settings["url_pattern"]))
+    if problem is not None:
+        # Checked before any report is read: str.format would otherwise fail
+        # on the first case that carries a file, as a traceback.
+        print(
+            f"error: {_spell('url_pattern', sources)} {settings['url_pattern']!r}: "
+            f"{problem}",
+            file=sys.stderr,
+        )
+        return 2
+
     if bool(settings["remote_url"]) != bool(settings["commit"]):
         print(
             f"error: {_pair_requirement(sources, config_path)} must be given "
@@ -359,7 +403,7 @@ def _convert(arguments: argparse.Namespace) -> int:
         )
         return 2
 
-    suites: list = []
+    reports: list = []
     for name in arguments.files:
         path = Path(name)
         if not path.is_file():
@@ -371,11 +415,13 @@ def _convert(arguments: argparse.Namespace) -> int:
             print(f"error: {path}: {error}", file=sys.stderr)
             return 1
         _warn_about_absent_source_lines(path, parsed)
-        suites.extend(parsed)
+        # The path as given, like the build records the path given to its
+        # directives; it is a label for the report, not something resolved.
+        reports.append((str(path), parsed))
 
     try:
         payload = build_needs_file(
-            suites,
+            reports,
             project=settings["project"],
             version=settings["version"],
             need_type=settings["need_type"],
@@ -384,6 +430,11 @@ def _convert(arguments: argparse.Namespace) -> int:
             base_url=normalise_remote_url(settings["remote_url"]),
             commit=settings["commit"],
             url_pattern=settings["url_pattern"],
+            # The renameable field names and the accepted extra fields come
+            # from the same section the build reads, so an imported need has
+            # the shape of a local one.
+            fields=field_names(section),
+            extra_options=_extra_options(arguments, section),
             warn=_warn,
         )
     except ValueError as error:  # duplicate test cases across the inputs

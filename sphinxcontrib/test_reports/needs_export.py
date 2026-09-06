@@ -20,12 +20,19 @@ from sphinxcontrib.test_reports.identity import (
     UNKNOWN,
     case_display_name,
     deterministic_case_id,
+    split_case_name,
 )
+from sphinxcontrib.test_reports.projectconfig import DEFAULT_FIELD_NAMES
 from sphinxcontrib.test_reports.remote import DEFAULT_URL_PATTERN, source_url
 
 #: A need field value as it appears in needs.json.
 FieldValue = Union[str, list[str]]
 NeedItem = dict[str, FieldValue]
+
+#: A parsed report: the path it was read from, and its top-level suites. The
+#: path is what the build's ``test-file``/``test-case`` directives record as
+#: the report-path field, so it travels with the suites.
+Report = tuple[str, Sequence[Mapping[str, object]]]
 
 #: Version key used when the caller does not supply one. needs.json requires a
 #: ``current_version``, but a converted report has no baseline history.
@@ -115,7 +122,7 @@ def _first_message(case: Mapping[str, object]) -> str:
     return ""
 
 
-def _optional(value: object, absent: object) -> str:
+def optional(value: object, absent: object) -> str:
     """String form of an attribute, empty when the parser reported it absent."""
     return "" if value is None or value == absent else str(value)
 
@@ -127,18 +134,26 @@ def _mappings(value: object) -> list[Mapping[str, object]]:
     return [item for item in value if isinstance(item, Mapping)]
 
 
-def _iter_cases(
+def iter_cases(
     suites: Iterable[Mapping[str, object]],
 ) -> Iterator[tuple[str, Mapping[str, object]]]:
-    """Yield ``(suite_name, case)`` pairs, descending into nested suites."""
+    """Yield ``(suite_name, case)`` pairs, descending into nested suites.
+
+    The parser files the cases of a suite that contains nested ``<testsuite>``
+    elements under ``testsuite_nested`` only, so anything that wants to see
+    every case of a report has to walk this way -- the export does, and so must
+    every diagnostic about the report's cases, or it goes quiet on exactly the
+    nested reports Ant and Maven produce.
+    """
     for suite in suites:
         name = str(suite.get("name", ""))
         for case in _mappings(suite.get("testcases")):
             yield name, case
-        yield from _iter_cases(_mappings(suite.get("testsuite_nested")))
+        yield from iter_cases(_mappings(suite.get("testsuite_nested")))
 
 
 def build_need(
+    report_path: str,
     suite_name: str,
     case: Mapping[str, object],
     *,
@@ -148,22 +163,41 @@ def build_need(
     base_url: str = "",
     commit: str = "",
     url_pattern: str = DEFAULT_URL_PATTERN,
+    fields: Mapping[str, str] | None = None,
+    extra_options: Sequence[str] = (),
     warn: Callable[[str], None] | None = None,
 ) -> NeedItem:
-    """One test case as a need item.
+    """One test case as a need item, shaped like the build's ``test-case``.
+
+    The field names are those of the directives -- ``suite``/``case``/
+    ``case_name``/``case_parameter``/``classname``/``result``/``time`` plus the
+    renameable report-path and source-location fields in *fields* (see
+    :data:`DEFAULT_FIELD_NAMES`) -- so that a need imported from the produced
+    ``needs.json`` and one created locally from the same report are
+    indistinguishable to a schema, a filter or a ``needtable``.
+
+    XML properties become fields under their own names only when listed in
+    *extra_options* -- the same list that makes the build register them as need
+    options and accept them -- so an import never has to drop them as unknown
+    keys. A property mapped by *link_properties* becomes a link field
+    regardless. Everything else is left out; :func:`build_needs_file` reports
+    what was left out, once.
 
     *warn* is called for a property that cannot become a field because its
     name is already taken by a built-in or link field. The property is dropped
-    -- silently overwriting ``result`` or ``file`` would be worse -- but
+    -- silently overwriting ``result`` or the report path would be worse -- but
     silently dropping it is not acceptable either.
     """
     link_properties = link_properties or {}
+    names = {**DEFAULT_FIELD_NAMES, **(fields or {})}
+    exported = set(extra_options)
 
-    classname = _optional(case.get("classname"), UNKNOWN)
-    name = _optional(case.get("name"), UNKNOWN)
-    source_file = _optional(case.get("file"), UNKNOWN)
-    source_line = _optional(case.get("line"), -1)
-    time = _optional(case.get("time"), -1)
+    classname = optional(case.get("classname"), UNKNOWN)
+    name = optional(case.get("name"), UNKNOWN)
+    case_name, case_parameter = split_case_name(name)
+    source_file = optional(case.get("file"), UNKNOWN)
+    source_line = optional(case.get("line"), -1)
+    time = optional(case.get("time"), -1)
 
     url = source_url(base_url, commit, source_file, source_line, url_pattern)
 
@@ -175,11 +209,14 @@ def build_need(
         "title": case_display_name(classname, name),
         "content": build_content(case),
         "tags": list(tags),
-        "name": name,
-        "classname": classname,
         "suite": suite_name,
-        "file": source_file,
-        "line": source_line,
+        "case": name,
+        "case_name": case_name,
+        "case_parameter": case_parameter,
+        "classname": classname,
+        names["file_option"]: report_path,
+        names["source_file_option"]: source_file,
+        names["source_line_option"]: source_line,
         "time": time,
         "result": RESULT_NAMES.get(
             str(case.get("result", "")), str(case.get("result", ""))
@@ -202,7 +239,7 @@ def build_need(
         need[link_field] = [item.strip() for item in raw.split(",") if item.strip()]
 
     for property_name, value in properties.items():
-        if property_name in link_properties:
+        if property_name in link_properties or property_name not in exported:
             continue
         if property_name in need:
             if warn is not None:
@@ -217,7 +254,7 @@ def build_need(
 
 
 def build_needs_file(
-    suites: Iterable[Mapping[str, object]],
+    reports: Iterable[Report],
     *,
     project: str = "",
     version: str = DEFAULT_VERSION,
@@ -227,6 +264,8 @@ def build_needs_file(
     base_url: str = "",
     commit: str = "",
     url_pattern: str = DEFAULT_URL_PATTERN,
+    fields: Mapping[str, str] | None = None,
+    extra_options: Sequence[str] = (),
     warn: Callable[[str], None] | None = None,
 ) -> dict[str, object]:
     """The complete needs.json payload for a set of parsed reports.
@@ -234,7 +273,12 @@ def build_needs_file(
     No ``created`` key is written: a wall clock inside a cacheable build output
     would change the file on every run.
 
-    :raises ValueError: If a test case occurs more than once across *suites*.
+    Properties that are neither in *extra_options* nor mapped by
+    *link_properties* are not exported (see :func:`build_need`); their names are
+    reported through *warn* once, with the key to add them to, so the omission
+    is a decision the user can see rather than a silent one.
+
+    :raises ValueError: If a test case occurs more than once across *reports*.
         Its ID is derived from where the test is, so a repeat means the same
         case was reported twice -- typically the same report given twice. A
         needs.json cannot hold two needs with one ID, and keeping either one
@@ -242,28 +286,44 @@ def build_needs_file(
     """
     needs: dict[str, NeedItem] = {}
     duplicates: set[str] = set()
-    for suite_name, case in _iter_cases(suites):
-        need = build_need(
-            suite_name,
-            case,
-            need_type=need_type,
-            tags=tags,
-            link_properties=link_properties,
-            base_url=base_url,
-            commit=commit,
-            url_pattern=url_pattern,
-            warn=warn,
-        )
-        need_id = str(need["id"])
-        if need_id in needs:
-            duplicates.add(need_id)
-        needs[need_id] = need
+    left_out: set[str] = set()
+    known = set(extra_options) | set(link_properties or {})
+    for report_path, suites in reports:
+        for suite_name, case in iter_cases(suites):
+            properties = case.get("properties")
+            if isinstance(properties, Mapping):
+                left_out.update(str(name) for name in properties if name not in known)
+            need = build_need(
+                report_path,
+                suite_name,
+                case,
+                need_type=need_type,
+                tags=tags,
+                link_properties=link_properties,
+                base_url=base_url,
+                commit=commit,
+                url_pattern=url_pattern,
+                fields=fields,
+                extra_options=extra_options,
+                warn=warn,
+            )
+            need_id = str(need["id"])
+            if need_id in needs:
+                duplicates.add(need_id)
+            needs[need_id] = need
     if duplicates:
         listed = ", ".join(sorted(duplicates))
         raise ValueError(
             f"{len(duplicates)} test case(s) occur more than once across the given "
             f"reports and would collapse into one need each: {listed}. Every case "
             f"must be unique; if the same report was given twice, give it once."
+        )
+    if left_out and warn is not None:
+        warn(
+            f"properties not exported: {', '.join(sorted(left_out))}. Only "
+            f"properties listed in extra_options become need fields (the build "
+            f"accepts exactly those); list them there, or map them to a link "
+            f"field with link_properties."
         )
 
     return {

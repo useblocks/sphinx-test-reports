@@ -35,10 +35,18 @@ given twice -- would collapse into one need; the command refuses that with an
 error naming the affected IDs rather than writing a valid-looking file that has
 lost evidence.
 
-Each test case becomes one need, with the source location under the ``file`` and
-``line`` fields, the result under ``result``, a one-line ``result_text``, and the
-full failure evidence (every ``<failure>``/``<skipped>`` part plus captured
-output) in the need content.
+Each test case becomes one need shaped exactly like the need the build's
+``test-case`` directive creates for it: ``suite``, ``case``, ``case_name``,
+``case_parameter``, ``classname``, ``result`` and ``time``; the report path
+under ``file``; the test's source location under ``case_file`` and
+``case_line``; a one-line ``result_text``; and the full failure evidence (every
+``<failure>``/``<skipped>`` part plus captured output) in the need content.
+
+The three renameable fields carry the names the build's ``tr_file_option``,
+``tr_source_file_option`` and ``tr_source_line_option`` select -- the converter
+reads them from the same ``[test_reports]`` section (:ref:`tr_config_from_toml`),
+so a project that spells its source location ``file``/``line`` gets a
+``needs.json`` that says so too.
 
 Consuming the result
 --------------------
@@ -52,6 +60,16 @@ needs:
 
 or mounted as external needs via ``needs_external_needs`` in ``conf.py``.
 
+Two things a build has to allow for. The IDs are lowercase
+(``testcase__MathTest__Addition_hcuyy``), the scheme S-CORE's tooling uses, and
+sphinx-needs' default ``needs_id_regex`` accepts capitals only -- widen it, e.g.
+``needs_id_regex = "^[A-Za-z0-9_]{5,}"``, or every import is refused (see also
+``tr_deterministic_case_ids`` in :ref:`configuration`). And a link field
+created with ``--link-property`` has to exist as a link type
+(``needs_extra_links``), as for any need. The plain fields the converter adds
+beyond the directive's (``result_text``, ``remote_url``) are registered by the
+extension, so ``needimport`` keeps them.
+
 Every need carries the synthesized source URL twice: as ``external_url``, which
 Sphinx-Needs uses when rendering a link to an external need, and as a plain
 ``remote_url`` field, so needs imported as *local* needs keep a clickable link
@@ -60,8 +78,12 @@ through a ``needs_string_links`` entry.
 Linking test cases to requirements
 ----------------------------------
 
-XML ``<properties>`` become need fields under their own names. To turn one into a
-link field instead, map it -- the value is split on commas:
+An XML ``<property>`` becomes a need field under its own name when it is listed
+in the ``extra_options`` of the ``[test_reports]`` section -- the same list that
+makes the build register the field and accept it, so an import never has to drop
+it as an unknown key -- or given with ``--extra-option NAME``. Properties named
+by neither are left out, and the command says which, once. To turn a property
+into a link field instead, map it -- the value is split on commas:
 
 .. code-block:: bash
 
@@ -102,6 +124,10 @@ which accepts the placeholders ``{base}``, ``{commit}``, ``{file}`` and
    test-reports convert test.xml --output needs.json \
        --remote-url https://gitlab.com/org/repo --commit abc123 \
        --url-pattern "{base}/-/blob/{commit}/{file}#L{line}"
+
+The template is checked before any report is read: an unknown placeholder or an
+unbalanced brace is a configuration error naming the problem, not a traceback on
+the first case that happens to carry a file.
 
 .. _cli-declarative:
 
@@ -177,7 +203,7 @@ All options
                         [--config PATH | --no-config]
                         [--project NAME] [--version KEY]
                         [--need-type TYPE] [--tags TAGS]
-                        [--link-property PROPERTY=LINK_FIELD]
+                        [--extra-option NAME] [--link-property PROPERTY=LINK_FIELD]
                         [--remote-url URL] [--commit COMMITISH]
                         [--url-pattern PATTERN]
 

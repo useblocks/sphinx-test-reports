@@ -119,8 +119,10 @@ class TestNeedContent:
         _, data = _convert(tmp_path)
 
         need = _needs(data)["testcase__MathTest__Addition_hcuyy"]
-        assert need["file"] == "src/math_test.cc"
-        assert need["line"] == "12"
+        assert need["case_file"] == "src/math_test.cc"
+        assert need["case_line"] == "12"
+        # `file` is the report path, as in a locally created test-case need.
+        assert need["file"] == str(GTEST_XML)
 
     def test_type_and_title_are_score_shaped(self, tmp_path):
         _, data = _convert(tmp_path)
@@ -151,11 +153,25 @@ class TestNeedContent:
         assert need["result_text"].startswith("src/math_test.cc:22")
         assert "\n" not in need["result_text"]
 
-    def test_properties_become_fields(self, tmp_path):
-        _, data = _convert(tmp_path)
-
+    def test_named_properties_become_fields(self, tmp_path, capsys):
+        # Only properties the build would accept (extra_options, or here the
+        # flag standing in for it) become fields; the rest is reported once.
+        code, data = _convert(tmp_path, "--no-config", "--extra-option", "TestType")
+        assert code == 0
         need = _needs(data)["testcase__MathTest__Addition_hcuyy"]
         assert need["TestType"] == "requirements-based"
+        assert "PartiallyVerifies" not in need
+        message = capsys.readouterr().err
+        assert "properties not exported" in message
+        assert "PartiallyVerifies" in message
+        assert "extra_options" in message
+
+    def test_unnamed_properties_are_left_out_quietly_when_none_exist(
+        self, tmp_path, capsys
+    ):
+        code, _ = _convert(tmp_path, "--no-config", xml=PYTEST_XML)
+        assert code == 0
+        assert "properties not exported" not in capsys.readouterr().err
 
     def test_tags_are_configurable(self, tmp_path):
         _, data = _convert(tmp_path, "--tags", "TEST")
@@ -251,6 +267,34 @@ class TestRemoteUrls:
         assert need["external_url"] == ""
 
 
+class TestUrlPatternErrors:
+    """A bad template is a configuration error at the start, not a traceback."""
+
+    def test_an_unknown_placeholder_is_an_error(self, tmp_path, capsys):
+        code, data = _convert(
+            tmp_path,
+            "--no-config",
+            "--remote-url",
+            "https://github.com/o/r",
+            "--commit",
+            "abc",
+            "--url-pattern",
+            "{base}/blob/{ref}/{file}#L{line}",
+        )
+        assert code == 2
+        assert data is None
+        message = capsys.readouterr().err
+        assert "--url-pattern" in message
+        assert "{ref}" in message
+
+    def test_an_unbalanced_brace_is_an_error(self, tmp_path, capsys):
+        code, _ = _convert(
+            tmp_path, "--no-config", "--url-pattern", "{base/blob/{commit}/{file}"
+        )
+        assert code == 2
+        assert "malformed" in capsys.readouterr().err
+
+
 class TestMultipleInputs:
     def test_several_reports_are_merged_into_one_file(self, tmp_path):
         from sphinxcontrib.test_reports.cli import main
@@ -315,6 +359,17 @@ class TestDiagnostics:
             ]
         )
 
+        assert "junit_family" in capsys.readouterr().err
+
+    def test_nested_suites_get_the_hint_too(self, tmp_path, capsys):
+        # The parser files the cases of a nested report under testsuite_nested;
+        # a hint that only looked at the top level went quiet on exactly the
+        # Ant/Maven-shaped reports that most often lack source locations.
+        code, data = _convert(
+            tmp_path, "--no-config", xml=UTILS / "pytest_nested_example.xml"
+        )
+        assert code == 0
+        assert all(need["case_line"] == "" for need in _needs(data).values())
         assert "junit_family" in capsys.readouterr().err
 
     def test_reports_with_line_attributes_do_not_warn(self, tmp_path, capsys):
@@ -420,3 +475,55 @@ class TestContentIsNotDuplicated:
         content = _needs(data)["testcase__ParamTest_0__Legacy_owuvz"]["content"]
         assert "Skipped via GTEST_SKIP" in content
         assert "not applicable on this platform" in content
+
+
+class TestImportIntoABuild:
+    """The documented consumption path: ``needimport`` of the produced file.
+
+    The converter writes needs shaped like the build's own test-case needs, so
+    a build with the extension has to import them without dropping fields.
+    """
+
+    def test_converted_needs_import_without_loss(self, tmp_path):
+        from io import StringIO
+        from shutil import copytree
+
+        from sphinx.application import Sphinx
+
+        docs = tmp_path / "docs"
+        copytree(Path(__file__).parent / "doc_test" / "basic_doc", docs)
+        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+        with (docs / "conf.py").open("a", encoding="utf-8") as handle:
+            # The IDs are lowercase; sphinx-needs' default regex is not.
+            handle.write('\nneeds_id_regex = "^[A-Za-z0-9_]{5,}"\n')
+        (docs / "index.rst").write_text(
+            "Imported\n========\n\n.. needimport:: needs.json\n", encoding="utf-8"
+        )
+        # One declarative file for both consumers: the build registers these
+        # properties as need options, the converter exports exactly these.
+        config = docs / "ubproject.toml"
+        config.write_text(
+            '[test_reports]\nextra_options = ["TestType", "Requirement", "PartiallyVerifies"]\n',
+            encoding="utf-8",
+        )
+        code, data = _convert(docs, "--config", str(config), xml=GTEST_XML)
+        assert code == 0
+
+        warnings = StringIO()
+        app = Sphinx(
+            srcdir=docs,
+            confdir=docs,
+            outdir=docs / "_build" / "html",
+            doctreedir=docs / "_build" / "doctrees",
+            buildername="html",
+            freshenv=True,
+            status=None,
+            warning=warnings,
+        )
+        app.build()
+        text = warnings.getvalue()
+        assert "Unknown keys" not in text, text
+        assert "could not be imported" not in text, text
+        html = (docs / "_build" / "html" / "index.html").read_text(encoding="utf-8")
+        for need_id in _needs(data):
+            assert need_id in html
