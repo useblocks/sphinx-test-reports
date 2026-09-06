@@ -264,6 +264,28 @@ class TestMultipleInputs:
         assert code == 0
         assert len(_needs(data)) > 5
 
+    def test_the_same_report_given_twice_is_refused(self, tmp_path, capsys):
+        # Silently collapsing the repeats would produce a valid file that has
+        # lost half its evidence -- the worst outcome for a cached artifact.
+        from sphinxcontrib.test_reports.cli import main
+
+        output = tmp_path / "needs.json"
+        code = main(
+            [
+                "convert",
+                str(GTEST_XML),
+                str(GTEST_XML),
+                "--no-config",
+                "-o",
+                str(output),
+            ]
+        )
+        assert code == 2
+        assert not output.exists()
+        message = capsys.readouterr().err
+        assert "more than once" in message
+        assert "testcase__" in message
+
     def test_a_missing_input_file_exits_nonzero(self, tmp_path):
         from sphinxcontrib.test_reports.cli import main
 

@@ -11,8 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from sphinxcontrib.test_reports.cli import main
-from sphinxcontrib.test_reports.projectconfig import DEFAULT_TOML_FILENAME
+from sphinxcontrib.test_reports.cli import _DEFAULTS, main
+from sphinxcontrib.test_reports.projectconfig import (
+    CONVERSION_KEYS,
+    DEFAULT_TOML_FILENAME,
+)
 
 UTILS = Path(__file__).parent / "doc_test" / "utils"
 PYTEST_XML = str(UTILS / "pytest_data.xml")
@@ -269,3 +272,67 @@ class TestDiagnostics:
         )
         assert code == 2
         assert "link_properties" in capsys.readouterr().err
+
+    def test_need_type_flag_disagreeing_with_the_case_type_is_an_error(
+        self, tmp_path, capsys
+    ):
+        # The loader only sees the file. A flag is not in the file, so the
+        # merged value has to be checked again, or the flag bypasses the rule.
+        code, _ = run_convert(
+            tmp_path,
+            ["--need-type", "testcase"],
+            toml="""
+            [test_reports.case]
+            directive = "test-case"
+            type = "check"
+            name = "Check"
+            prefix = "CH_"
+            color = "#999999"
+            style = "rectangle"
+            """,
+        )
+        assert code == 2
+        message = capsys.readouterr().err
+        assert "--need-type is 'testcase'" in message
+        assert "'check'" in message
+
+    def test_the_default_need_type_disagreeing_with_the_case_type_is_an_error(
+        self, tmp_path, capsys
+    ):
+        code, _ = run_convert(
+            tmp_path,
+            [],
+            toml="""
+            [test_reports.case]
+            directive = "test-case"
+            type = "check"
+            name = "Check"
+            prefix = "CH_"
+            color = "#999999"
+            style = "rectangle"
+            """,
+        )
+        assert code == 2
+        assert "the default need_type is 'testcase'" in capsys.readouterr().err
+
+    def test_a_matching_need_type_flag_is_fine(self, tmp_path):
+        code, payload = run_convert(
+            tmp_path,
+            ["--need-type", "check"],
+            toml="""
+            [test_reports.case]
+            directive = "test-case"
+            type = "check"
+            name = "Check"
+            prefix = "CH_"
+            color = "#999999"
+            style = "rectangle"
+            """,
+        )
+        assert code == 0
+        assert _first_need(payload)["type"] == "check"
+
+
+def test_every_conversion_key_has_a_builtin_default():
+    # The import-time guard says the same; this keeps saying it under -O.
+    assert set(_DEFAULTS) == set(CONVERSION_KEYS)

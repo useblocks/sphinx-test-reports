@@ -416,13 +416,12 @@ def _check_need_type_agreement(section: Mapping[str, object], path: Path) -> Non
     registers nor cross-links.
     """
     convert = section.get(CONVERT_TABLE)
-    case = section.get("case")
-    if not isinstance(convert, Mapping) or not isinstance(case, Sequence):
+    case_type = case_need_type(section)
+    if not isinstance(convert, Mapping) or case_type is None:
         return
     need_type: object = convert.get("need_type")
     if not isinstance(need_type, str):
         return
-    case_type: object = case[_TYPE_FIELD_INDEX]
     if case_type != need_type:
         msg = (
             f"{path}: [{SECTION}.{CONVERT_TABLE}] need_type is {need_type!r} but "
@@ -462,6 +461,20 @@ def _check_table_values(
                 f"{_type_label(expected)}, got {type(item).__name__}: {item!r}"
             )
             raise TomlConfigError(msg)
+
+
+def case_need_type(section: Mapping[str, object]) -> str | None:
+    """The need type the build gives test cases, if the section sets ``case``.
+
+    Shared by the loader's own agreement check and by the converter, which has
+    to re-check after merging command-line flags: a ``--need-type`` given on
+    the command line is not in the file and so escapes the loader.
+    """
+    case = section.get("case")
+    if not isinstance(case, Sequence):
+        return None
+    value: object = case[_TYPE_FIELD_INDEX]
+    return value if isinstance(value, str) else None
 
 
 def _wrong_type(

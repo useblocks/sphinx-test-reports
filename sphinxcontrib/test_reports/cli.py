@@ -26,6 +26,7 @@ from sphinxcontrib.test_reports.projectconfig import (
     DEFAULT_TOML_FILENAME,
     SECTION,
     TomlConfigError,
+    case_need_type,
     find_project_config,
     load_project_config,
 )
@@ -33,6 +34,10 @@ from sphinxcontrib.test_reports.remote import DEFAULT_URL_PATTERN, normalise_rem
 
 #: How the table is spelled in help texts and diagnostics.
 TABLE = f"[{SECTION}.{CONVERT_TABLE}]"
+
+
+def _warn(message: str) -> None:
+    print(f"warning: {message}", file=sys.stderr)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -191,14 +196,18 @@ def _warn_about_absent_source_lines(path: Path, suites: list) -> None:
         )
 
 
-def _load_convert_table(
+def _load_section(
     arguments: argparse.Namespace,
 ) -> "tuple[dict, Path | None, str | None]":
-    """Load ``[test_reports.convert]``, honouring ``--config``/``--no-config``.
+    """Load the ``[test_reports]`` section, honouring ``--config``/``--no-config``.
 
-    Returns ``(table, path, error_message)``. ``table`` is ``{}`` and ``path``
-    ``None`` when no file applies: an absent *default* file is not an error, an
-    explicitly given path that cannot be read is.
+    Returns ``(section, path, error_message)``. ``section`` is ``{}`` and
+    ``path`` ``None`` when no file applies: an absent *default* file is not an
+    error, an explicitly given path that cannot be read is.
+
+    The whole section is loaded, not only the converter's table: validation
+    covers the file as the build sees it, and the build's ``case`` entry is
+    needed to check the need type against.
 
     The default file is searched for upwards from the working directory, since
     it conventionally sits at the project root while the converter runs from
@@ -218,15 +227,11 @@ def _load_convert_table(
             return {}, None, None
         path = found
 
-    def warn(message: str) -> None:
-        print(f"warning: {message}", file=sys.stderr)
-
     try:
-        section = load_project_config(path, warn) or {}
+        section = load_project_config(path, _warn) or {}
     except TomlConfigError as error:
         return {}, path, f"error: {error}"
-    table = section.get(CONVERT_TABLE, {})
-    return table if isinstance(table, dict) else {}, path, None
+    return section, path, None
 
 
 #: Built-in value of every conversion setting, used when neither a flag nor
@@ -243,7 +248,8 @@ _DEFAULTS: "dict[str, object]" = {
     "commit": "",
     "url_pattern": DEFAULT_URL_PATTERN,
 }
-assert set(_DEFAULTS) == set(CONVERSION_KEYS), "every conversion key needs a default"
+if set(_DEFAULTS) != set(CONVERSION_KEYS):  # pragma: no cover - import-time guard
+    raise RuntimeError("every [test_reports.convert] key needs a built-in default")
 
 #: argparse destination per conversion key, where it differs from the key.
 #: Only the repeatable ``--link-property`` flag does.
@@ -285,8 +291,13 @@ def _resolve_settings(
 
 
 def _spell(key: str, sources: "dict[str, str]") -> str:
-    """The key as the user wrote it: the flag, or the TOML key."""
-    return key if sources.get(key) == "toml" else _FLAGS[key]
+    """The key as the user wrote it: the flag, the TOML key, or the default."""
+    source = sources.get(key)
+    if source == "toml":
+        return key
+    if source == "default":
+        return f"the default {key}"
+    return _FLAGS[key]
 
 
 def _pair_requirement(sources: "dict[str, str]", path: "Path | None") -> str:
@@ -295,19 +306,44 @@ def _pair_requirement(sources: "dict[str, str]", path: "Path | None") -> str:
     Either half can come from the TOML file, so naming only the flags would
     point at options that appear nowhere in the invocation.
     """
-    requirement = f"{_spell('remote_url', sources)} and {_spell('commit', sources)}"
+    # The half that is missing is named by the flag that would supply it --
+    # that is the actionable spelling -- and the half that was given by however
+    # the user gave it.
+    names = [
+        key if sources.get(key) == "toml" else _FLAGS[key]
+        for key in ("remote_url", "commit")
+    ]
+    requirement = f"{names[0]} and {names[1]}"
     if "toml" in (sources.get("remote_url"), sources.get("commit")):
         requirement += f" (the bare names are {TABLE} keys in {path})"
     return requirement
 
 
 def _convert(arguments: argparse.Namespace) -> int:
-    table, config_path, error = _load_convert_table(arguments)
+    section, config_path, error = _load_section(arguments)
     if error:
         print(error, file=sys.stderr)
         return 2
 
-    settings, sources = _resolve_settings(arguments, table)
+    table = section.get(CONVERT_TABLE, {})
+    settings, sources = _resolve_settings(
+        arguments, table if isinstance(table, dict) else {}
+    )
+
+    # The loader already rejects a file whose convert.need_type disagrees with
+    # case's type. A --need-type flag (or the default) is not in the file, so
+    # the merged value has to be checked here as well, or the converter writes
+    # needs of a type the build does not register.
+    case_type = case_need_type(section)
+    if case_type is not None and settings["need_type"] != case_type:
+        print(
+            f"error: {_spell('need_type', sources)} is {settings['need_type']!r} "
+            f"but [{SECTION}] case's type is {case_type!r} in {config_path}. Both "
+            f"name the need type of a test case -- need_type for this converter, "
+            f"case for the Sphinx build -- so they must agree.",
+            file=sys.stderr,
+        )
+        return 2
 
     try:
         link_properties = _parse_link_properties(settings["link_properties"])
@@ -337,17 +373,22 @@ def _convert(arguments: argparse.Namespace) -> int:
         _warn_about_absent_source_lines(path, parsed)
         suites.extend(parsed)
 
-    payload = build_needs_file(
-        suites,
-        project=settings["project"],
-        version=settings["version"],
-        need_type=settings["need_type"],
-        tags=settings["tags"],
-        link_properties=link_properties,
-        base_url=normalise_remote_url(settings["remote_url"]),
-        commit=settings["commit"],
-        url_pattern=settings["url_pattern"],
-    )
+    try:
+        payload = build_needs_file(
+            suites,
+            project=settings["project"],
+            version=settings["version"],
+            need_type=settings["need_type"],
+            tags=settings["tags"],
+            link_properties=link_properties,
+            base_url=normalise_remote_url(settings["remote_url"]),
+            commit=settings["commit"],
+            url_pattern=settings["url_pattern"],
+            warn=_warn,
+        )
+    except ValueError as error:  # duplicate test cases across the inputs
+        print(f"error: {error}", file=sys.stderr)
+        return 2
 
     output = Path(arguments.output)
     output.parent.mkdir(parents=True, exist_ok=True)

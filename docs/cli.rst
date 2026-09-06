@@ -29,6 +29,12 @@ passes them as a file list:
 
    test-reports convert report_a.xml report_b.xml --output needs.json
 
+Every test case must be unique across the given reports. A case's ID is derived
+from where the test is, so the same case twice -- typically the same report
+given twice -- would collapse into one need; the command refuses that with an
+error naming the affected IDs rather than writing a valid-looking file that has
+lost evidence.
+
 Each test case becomes one need, with the source location under the ``file`` and
 ``line`` fields, the result under ``result``, a one-line ``result_text``, and the
 full failure evidence (every ``<failure>``/``<skipped>`` part plus captured
@@ -65,6 +71,11 @@ link field instead, map it -- the value is split on commas:
 
 Mapped link fields are written even when a case has no such property, so a schema
 can require them.
+
+A property whose name is already taken by a built-in field (``result``,
+``file``, ``time``, ...) or by a mapped link field is not exported: the built-in
+value wins, and the command says so on stderr. Rename the property, or map it to
+a link field, to get it into the need.
 
 Source links
 ------------
@@ -136,9 +147,11 @@ ignored. The whole ``[test_reports]`` section is validated, not only the
 refuse.
 
 ``need_type`` and the ``type`` of the build's ``case`` entry both name the need
-type of a test case, so a file that sets them to different values is rejected:
-a ``needs.json`` written with one type is neither registered nor cross-linked by
-a build configured with the other.
+type of a test case, so they must agree: a ``needs.json`` written with one type
+is neither registered nor cross-linked by a build configured with the other. The
+rule holds for the *merged* value -- a ``--need-type`` flag, or the built-in
+default, disagreeing with the file's ``case`` is refused just like a
+disagreeing ``need_type`` in the file.
 
 Reproducible output
 -------------------

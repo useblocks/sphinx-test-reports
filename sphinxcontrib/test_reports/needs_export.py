@@ -13,7 +13,8 @@ Two rules shape the output:
 """
 
 import re
-from typing import Iterable, Iterator, Mapping, Sequence, Union
+import textwrap
+from typing import Callable, Iterable, Iterator, Mapping, Sequence, Union
 
 from sphinxcontrib.test_reports.identity import (
     UNKNOWN,
@@ -55,8 +56,16 @@ def _contains(haystack: str, needle: str) -> bool:
 
 
 def _literal_block(title: str, body: str) -> str:
-    """An RST literal block, indented so the need content stays valid."""
-    indented = "\n".join(f"   {line.lstrip()}" for line in body.split("\n"))
+    """An RST literal block, indented so the need content stays valid.
+
+    The body is dedented as a whole, not line by line: XML pretty-printing adds
+    a common indentation that has to go, but a traceback or an assertion diff
+    is only readable if its *relative* indentation survives.
+    """
+    lines = textwrap.dedent(body).strip("\n").split("\n")
+    indented = "\n".join(
+        f"   {line.rstrip()}" if line.strip() else "" for line in lines
+    )
     return f"\n**{title}**::\n\n{indented}\n"
 
 
@@ -139,8 +148,15 @@ def build_need(
     base_url: str = "",
     commit: str = "",
     url_pattern: str = DEFAULT_URL_PATTERN,
+    warn: Callable[[str], None] | None = None,
 ) -> NeedItem:
-    """One test case as a need item."""
+    """One test case as a need item.
+
+    *warn* is called for a property that cannot become a field because its
+    name is already taken by a built-in or link field. The property is dropped
+    -- silently overwriting ``result`` or ``file`` would be worse -- but
+    silently dropping it is not acceptable either.
+    """
     link_properties = link_properties or {}
 
     classname = _optional(case.get("classname"), UNKNOWN)
@@ -186,7 +202,14 @@ def build_need(
         need[link_field] = [item.strip() for item in raw.split(",") if item.strip()]
 
     for property_name, value in properties.items():
-        if property_name in link_properties or property_name in need:
+        if property_name in link_properties:
+            continue
+        if property_name in need:
+            if warn is not None:
+                warn(
+                    f"{need['id']}: property {property_name!r} is not exported, "
+                    f"its name is taken by a built-in or link field"
+                )
             continue
         need[property_name] = str(value)
 
@@ -204,13 +227,21 @@ def build_needs_file(
     base_url: str = "",
     commit: str = "",
     url_pattern: str = DEFAULT_URL_PATTERN,
+    warn: Callable[[str], None] | None = None,
 ) -> dict[str, object]:
     """The complete needs.json payload for a set of parsed reports.
 
     No ``created`` key is written: a wall clock inside a cacheable build output
     would change the file on every run.
+
+    :raises ValueError: If a test case occurs more than once across *suites*.
+        Its ID is derived from where the test is, so a repeat means the same
+        case was reported twice -- typically the same report given twice. A
+        needs.json cannot hold two needs with one ID, and keeping either one
+        silently would lose evidence, so the caller has to sort out its inputs.
     """
     needs: dict[str, NeedItem] = {}
+    duplicates: set[str] = set()
     for suite_name, case in _iter_cases(suites):
         need = build_need(
             suite_name,
@@ -221,8 +252,19 @@ def build_needs_file(
             base_url=base_url,
             commit=commit,
             url_pattern=url_pattern,
+            warn=warn,
         )
-        needs[str(need["id"])] = need
+        need_id = str(need["id"])
+        if need_id in needs:
+            duplicates.add(need_id)
+        needs[need_id] = need
+    if duplicates:
+        listed = ", ".join(sorted(duplicates))
+        raise ValueError(
+            f"{len(duplicates)} test case(s) occur more than once across the given "
+            f"reports and would collapse into one need each: {listed}. Every case "
+            f"must be unique; if the same report was given twice, give it once."
+        )
 
     return {
         "project": project,

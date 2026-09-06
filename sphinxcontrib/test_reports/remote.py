@@ -15,10 +15,15 @@ import re
 #: GitHub and GitHub-compatible forges. GitLab needs ``{base}/-/blob/...``.
 DEFAULT_URL_PATTERN = "{base}/blob/{commit}/{file}#L{line}"
 
-#: ``git@host:org/repo.git`` and ``ssh://git@host/org/repo.git``.
-_SCP_STYLE = re.compile(
-    r"^(?:ssh://)?(?:[^@/]+@)?(?P<host>[^:/]+)[:/](?P<path>.+?)(?:\.git)?/?$"
+#: ``ssh://git@host[:port]/org/repo.git``. The port belongs to the ssh
+#: endpoint, not to the web UI, so it must not survive into the browsable base
+#: -- and must not be mistaken for the first path segment.
+_SSH_URL = re.compile(
+    r"^ssh://(?:[^@/]+@)?(?P<host>[^:/]+)(?::\d+)?/(?P<path>.+?)(?:\.git)?/?$"
 )
+
+#: ``git@host:org/repo.git`` and bare ``host/org/repo``.
+_SCP_STYLE = re.compile(r"^(?:[^@/]+@)?(?P<host>[^:/]+)[:/](?P<path>.+?)(?:\.git)?/?$")
 
 
 def normalise_remote_url(remote_url: str) -> str:
@@ -36,7 +41,7 @@ def normalise_remote_url(remote_url: str) -> str:
         stripped = url.rstrip("/")
         return stripped.removesuffix(".git")
 
-    match = _SCP_STYLE.match(url)
+    match = _SSH_URL.match(url) or _SCP_STYLE.match(url)
     if match is None:
         return url.rstrip("/")
 
@@ -62,5 +67,11 @@ def source_url(
     if not base_url or not commit or not file:
         return ""
 
-    effective_pattern = pattern if line else pattern.split("#")[0]
-    return effective_pattern.format(base=base_url, commit=commit, file=file, line=line)
+    if not line:
+        # Drop the fragment only when the anchor lives there. A pattern that
+        # carries the line elsewhere keeps its shape and gets an empty value,
+        # instead of losing whatever else followed the ``#``.
+        head, hash_sign, fragment = pattern.partition("#")
+        if hash_sign and "{line}" in fragment:
+            pattern = head
+    return pattern.format(base=base_url, commit=commit, file=file, line=line)
