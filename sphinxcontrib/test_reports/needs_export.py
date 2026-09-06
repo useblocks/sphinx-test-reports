@@ -200,6 +200,7 @@ def build_need(
     time = optional(case.get("time"), -1)
 
     url = source_url(base_url, commit, source_file, source_line, url_pattern)
+    content = build_content(case)
 
     need: NeedItem = {
         "id": deterministic_case_id(
@@ -207,7 +208,10 @@ def build_need(
         ),
         "type": need_type,
         "title": case_display_name(classname, name),
-        "content": build_content(case),
+        # ``content``, as sphinx-needs >= 4 writes and reads it. Older versions
+        # read the need text from ``description`` only, and current ones flag a
+        # file carrying both -- so importing a converted file needs >= 4.
+        "content": content,
         "tags": list(tags),
         "suite": suite_name,
         "case": name,

@@ -60,7 +60,9 @@ needs:
 
 or mounted as external needs via ``needs_external_needs`` in ``conf.py``.
 
-Two things a build has to allow for. The IDs are lowercase
+Importing needs sphinx-needs 4 or newer: older versions read the need text
+from a ``description`` key, the converter writes ``content`` like every version
+since. Two things a build has to allow for. The IDs are lowercase
 (``testcase__MathTest__Addition_hcuyy``), the scheme S-CORE's tooling uses, and
 sphinx-needs' default ``needs_id_regex`` accepts capitals only -- widen it, e.g.
 ``needs_id_regex = "^[A-Za-z0-9_]{5,}"``, or every import is refused (see also

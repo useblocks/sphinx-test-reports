@@ -488,7 +488,14 @@ class TestImportIntoABuild:
         from io import StringIO
         from shutil import copytree
 
+        import sphinx_needs
+        from packaging.version import Version
         from sphinx.application import Sphinx
+
+        if Version(sphinx_needs.__version__) < Version("4.0"):
+            # needimport read the need text from `description` only; the
+            # converter writes `content`, the spelling of every version since.
+            pytest.skip("needimport reads `content` only from sphinx-needs 4 on")
 
         docs = tmp_path / "docs"
         copytree(Path(__file__).parent / "doc_test" / "basic_doc", docs)
