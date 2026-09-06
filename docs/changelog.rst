@@ -40,6 +40,11 @@ Unreleased
   consumer can read the type of a field from the artifact instead of from a
   Sphinx build with the extension loaded. The declarations and the fields the
   extension registers come from one table, so the two cannot drift apart.
+* Feature: A pytest plugin (``-p sphinxcontrib.test_reports.pytest_plugin``)
+  writes the ``file``/``line`` attributes that give a test case its source
+  location, and requirement-link ``<properties>`` from an
+  ``add_test_properties`` decorator or an ``apply_test_metadata`` runtime
+  helper, ported from S-CORE's docs-as-code. See :ref:`pytest_plugin`.
 * Bugfix: ``tr_file_option``, ``tr_source_file_option`` and
   ``tr_source_line_option`` may no longer name a fixed field such as ``case``
   or ``result``, in ``conf.py`` or in the declarative file. The build

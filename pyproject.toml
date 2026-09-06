@@ -26,6 +26,9 @@ requires-python = ">=3.11"
 dependencies = ["sphinx>=7.4", "lxml", "sphinx-needs>=6.0.1"]
 
 [project.optional-dependencies]
+# The pytest plugin (sphinxcontrib.test_reports.pytest_plugin); pytest is not
+# a dependency of the extension or the converter.
+pytest = ["pytest>=7.0"]
 test = [
   "beautifulsoup4",
   "nox>=2025.2.9",
@@ -111,6 +114,10 @@ exclude = [
   "^sphinxcontrib/test_reports/functions",
   "^sphinxcontrib/test_reports/jsonparser\\.py$",
   "^sphinxcontrib/test_reports/junitparser\\.py$",
+  # pytest's marker API is Any-typed (MarkDecorator.__call__ on a
+  # Callable[..., object], whose `...` is itself an Any), which
+  # disallow_any_expr rejects for every decorator expression.
+  "^sphinxcontrib/test_reports/pytest_plugin\\.py$",
 ]
 # Disallow dynamic typing
 disallow_any_unimported = true

@@ -1,0 +1,165 @@
+"""The pytest plugin produces the XML shape this extension reads.
+
+Run through ``pytester``: a small test file is executed with the plugin enabled
+and the resulting JUnit XML inspected.
+"""
+
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+import pytest
+
+from sphinxcontrib.test_reports.pytest_plugin import (
+    clean_source_path,
+    properties_mapping,
+)
+
+PLUGIN = "sphinxcontrib.test_reports.pytest_plugin"
+
+DECORATED = """
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+@add_test_properties(
+    partially_verifies=["REQ_1", "REQ_2"],
+    test_type="requirements-based",
+    derivation_technique="requirements-analysis",
+    Owner="team-a",
+)
+def test_addition():
+    assert 1 + 1 == 2
+
+
+def test_plain():
+    assert True
+"""
+
+RUNTIME = """
+import pytest
+from sphinxcontrib.test_reports.pytest_plugin import apply_test_metadata
+
+@pytest.mark.parametrize("spec", ["a.rst", "b.rst"])
+def test_driven_by_a_file(spec, record_property, record_xml_attribute):
+    apply_test_metadata(
+        record_property=record_property,
+        metadata={"fully_verifies": ["REQ_9"], "test_type": "interface-test"},
+        record_xml_attribute=record_xml_attribute,
+        file=f"specs/{spec}",
+        line=7,
+    )
+    assert spec.endswith(".rst")
+"""
+
+
+def _line_of(source, needle):
+    """1-based line of *needle* in the file pytester writes (it strips the
+    leading blank line)."""
+    return next(
+        index
+        for index, line in enumerate(source.strip().splitlines(), start=1)
+        if line.startswith(needle)
+    )
+
+
+# pytest points a decorated function at its first decorator line.
+ADDITION_LINE = _line_of(DECORATED, "@add_test_properties(")
+PLAIN_LINE = _line_of(DECORATED, "def test_plain")
+
+
+def _run(pytester, source, *extra, family="xunit1"):
+    pytester.makepyfile(source)
+    report = pytester.path / "report.xml"
+    result = pytester.runpytest(
+        "-p", PLUGIN, "--junitxml", str(report), "-o", f"junit_family={family}", *extra
+    )
+    return result, (ET.parse(report).getroot() if report.exists() else None)
+
+
+def _cases(root):
+    return {case.get("name"): case for case in root.iter("testcase")}
+
+
+def _properties(case):
+    return {p.get("name"): p.get("value") for p in case.iter("property")}
+
+
+class TestXmlShape:
+    def test_every_case_carries_its_source_location(self, pytester):
+        result, root = _run(pytester, DECORATED)
+        result.assert_outcomes(passed=2)
+        cases = _cases(root)
+        for case in cases.values():
+            assert case.get("file") == "test_every_case_carries_its_source_location.py"
+        # pytest counts lines from 0; the attribute counts from 1 like editors.
+        # A decorated function is located at its first decorator.
+        assert cases["test_addition"].get("line") == str(ADDITION_LINE)
+        assert cases["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_the_decorator_writes_properties(self, pytester):
+        _, root = _run(pytester, DECORATED)
+        assert _properties(_cases(root)["test_addition"]) == {
+            "PartiallyVerifies": "REQ_1, REQ_2",
+            "TestType": "requirements-based",
+            "DerivationTechnique": "requirements-analysis",
+            "Owner": "team-a",
+        }
+        assert _properties(_cases(root)["test_plain"]) == {}
+
+    def test_runtime_metadata_and_location_override(self, pytester):
+        result, root = _run(pytester, RUNTIME)
+        result.assert_outcomes(passed=2)
+        case = _cases(root)["test_driven_by_a_file[a.rst]"]
+        assert _properties(case) == {
+            "FullyVerifies": "REQ_9",
+            "TestType": "interface-test",
+        }
+        assert case.get("file") == "specs/a.rst"
+        assert case.get("line") == "7"
+
+    def test_the_marker_is_registered(self, pytester):
+        result, _ = _run(pytester, DECORATED, "--strict-markers")
+        result.assert_outcomes(passed=2)
+
+    def test_the_record_xml_attribute_notice_is_silenced(self, pytester):
+        # pytest flags record_xml_attribute as experimental once per test; the
+        # plugin exists to use it, so that notice must not reach the user.
+        result, _ = _run(pytester, DECORATED)
+        noisy = [
+            line
+            for line in result.stdout.lines
+            if "record_xml_attribute is an experimental feature" in line
+        ]
+        assert noisy == []
+
+    def test_xunit2_is_warned_about_at_configure_time(self, pytester):
+        result, root = _run(pytester, DECORATED, family="xunit2")
+        result.stdout.fnmatch_lines(["*junit_family is 'xunit2'*xunit1*"])
+        assert _cases(root)["test_plain"].get("file") is None
+
+
+class TestHelpers:
+    def test_bazel_runfiles_prefix_is_cut(self):
+        assert clean_source_path("../_main/pkg/test_x.py") == "pkg/test_x.py"
+        assert clean_source_path("pkg/test_x.py") == "pkg/test_x.py"
+
+    def test_empty_values_are_dropped(self):
+        assert properties_mapping(fully_verifies=["R"], test_type="") == {
+            "FullyVerifies": "R"
+        }
+
+    def test_nothing_to_record_is_an_error(self):
+        with pytest.raises(ValueError, match="no test properties"):
+            properties_mapping(partially_verifies=[])
+
+    def test_the_plugin_does_not_import_sphinx(self):
+        script = (
+            "import sys;"
+            f"import {PLUGIN};"
+            "leaked = sorted(m for m in sys.modules"
+            " if m == 'sphinx' or m.startswith(('sphinx.', 'sphinx_needs')));"
+            "print(','.join(leaked))"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=True
+        )
+        assert result.stdout.strip() == ""
