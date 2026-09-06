@@ -92,6 +92,54 @@ which accepts the placeholders ``{base}``, ``{commit}``, ``{file}`` and
        --remote-url https://gitlab.com/org/repo --commit abc123 \
        --url-pattern "{base}/-/blob/{commit}/{file}#L{line}"
 
+.. _cli-declarative:
+
+Declarative configuration
+-------------------------
+
+None of the settings above has to be spelled as a flag. The command reads the
+``[test_reports.convert]`` table of ``ubproject.toml`` -- the same declarative
+file the documentation build reads (see :ref:`tr_config_from_toml`), so the two
+consumers of a project never work from different descriptions of it. By default
+the file is searched for in the working directory and its parents, stopping at
+the project root (a directory holding ``.git`` or ``pyproject.toml``); an absent
+default file is not an error.
+
+.. code-block:: toml
+
+   [test_reports.convert]
+   project = "My Project"
+   version = "2.0"
+   need_type = "testcase"
+   tags = ["ci", "unit"]
+   link_properties = { PartiallyVerifies = "partially_verifies" }
+   remote_url = "https://github.com/org/repo"
+   url_pattern = "{base}/blob/{commit}/{file}#L{line}"
+
+.. code-block:: bash
+
+   test-reports convert bazel-testlogs/my_target/test.xml --output needs.json \
+       --commit "$(git rev-parse HEAD)"
+
+**Precedence** is flag > table > built-in default. A flag given alongside the
+file overrides that key -- the natural home for per-invocation values such as
+the commit a CI job is converting for. ``--link-property``, given at all,
+replaces the whole ``link_properties`` table. ``--config PATH`` reads a
+different file (used as-is, not searched for, and it must exist);
+``--no-config`` ignores declarative configuration entirely, so the output
+depends only on the arguments given.
+
+**Validation** follows the file's own policy: a known key with the wrong type
+stops the conversion with an error, an unknown key is reported on stderr and
+ignored. The whole ``[test_reports]`` section is validated, not only the
+``convert`` table, so the converter refuses exactly the files the build would
+refuse.
+
+``need_type`` and the ``type`` of the build's ``case`` entry both name the need
+type of a test case, so a file that sets them to different values is rejected:
+a ``needs.json`` written with one type is neither registered nor cross-linked by
+a build configured with the other.
+
 Reproducible output
 -------------------
 
@@ -113,6 +161,7 @@ All options
 .. code-block:: text
 
    test-reports convert FILE [FILE ...] --output PATH
+                        [--config PATH | --no-config]
                         [--project NAME] [--version KEY]
                         [--need-type TYPE] [--tags TAGS]
                         [--link-property PROPERTY=LINK_FIELD]
@@ -121,4 +170,6 @@ All options
 
 ``--project`` and ``--version`` fill the ``needs.json`` envelope;
 ``--need-type`` (default ``testcase``) sets the need type and the ID prefix;
-``--tags`` is a comma-separated list applied to every created need.
+``--tags`` is a comma-separated list applied to every created need. Every one
+of these can also come from ``[test_reports.convert]`` in ``ubproject.toml``;
+a flag wins.

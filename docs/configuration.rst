@@ -450,11 +450,13 @@ catch. An *unknown* key is reported as a warning and ignored: the file is
 shared with tools on independent release cadences, so a key this version does
 not model must not take your build down.
 
-One sub-table belongs to another tool and is left alone: ``[test_reports.build]``
-holds the settings of the ``test-reports build`` command line, one sub-table per
-artifact it produces -- ``[test_reports.build.needs]`` for turning test reports
-into a ``needs.json`` outside Sphinx -- none of which this extension does. Any
-other sub-table is treated like any other unknown key -- reported and ignored.
+The ``[test_reports.convert]`` sub-table holds the settings of the
+:ref:`convert command <cli-declarative>`. The build validates it along with
+the rest of the section -- so a typo is caught whichever consumer reads the file
+first -- but never applies it to a ``tr_*`` value. One rule spans both:
+``need_type`` in that table and the ``type`` of ``case`` name the same need
+type, and a file setting them to different values is rejected. Any other sub-table is an unknown key like any other --
+reported and ignored.
 
 **Warnings.** The two warnings this feature emits carry a type, so either can
 be silenced through Sphinx's ``suppress_warnings`` in a project that builds

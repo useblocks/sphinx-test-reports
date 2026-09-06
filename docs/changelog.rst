@@ -32,7 +32,9 @@ Unreleased
 * Feature: New ``test-reports convert`` command line interface, converting
   test-result XML into a ``needs.json`` without running Sphinx, so the
   conversion can run as a cacheable build action and the documentation build
-  only imports the result. See :ref:`cli`.
+  only imports the result. Its settings come from the ``[test_reports.convert]``
+  table of ``ubproject.toml``, with flags for per-invocation overrides. See
+  :ref:`cli`.
 * Support: Python 3.10 is no longer supported. It reached the end of upstream
   support, and dropping it lets the package read TOML with ``tomllib`` from the
   standard library instead of carrying a backport.

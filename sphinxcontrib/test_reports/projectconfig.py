@@ -6,16 +6,20 @@ sphinx-codelinks, sphinx-mounts, ubCode) -- so that a project is described once
 instead of being restated in every tool that acts on it.
 
 **Nothing in this module may import Sphinx.** The section describes the project,
-not this extension, and a report-to-``needs.json`` converter has to be able to
-read it as a build action without the documentation toolchain installed.
+not this extension, and the ``test-reports convert`` command reads it as a
+build action without the documentation toolchain installed.
 
-The keys are the Sphinx-facing configuration (:data:`BRIDGE_KEYS`), spelled
-like the ``tr_*`` config values without the prefix. One sub-table belongs to
-another consumer: ``[test_reports.build]`` holds what the ``test-reports
-build`` command line produces -- ``[test_reports.build.needs]`` for its
-``needs.json`` -- which this reader passes through without interpreting it
-(:data:`FOREIGN_TABLES`). Any other sub-table is an unknown key like any
-other.
+Keys fall into two groups:
+
+* the Sphinx-facing configuration (:data:`BRIDGE_KEYS`), spelled like the
+  ``tr_*`` config values without the prefix, which the extension applies at
+  ``config-inited``;
+* the ``[test_reports.convert]`` sub-table (:data:`CONVERSION_KEYS`): how test
+  reports are turned into a ``needs.json``. The Sphinx bridge never applies it
+  to a ``tr_*`` value, but the build validates it like every other key, so a
+  typo is caught by whichever consumer reads the file first.
+
+Any other sub-table is an unknown key like any other.
 
 **Error policy.** A known key carrying the wrong type is fatal: that is the
 typo class this validation exists to catch, and letting it through would
@@ -102,12 +106,37 @@ PATH_KEYS = ("rootdir", "report_template")
 #: list form. ``None`` in :data:`_KEY_TYPES` marks exactly these.
 _DUAL_SPELLING_KEYS = ("file", "suite", "case")
 
-#: Sub-tables of the section that belong to another consumer. They are
-#: recognised so they do not draw an unknown-key warning, and deliberately not
-#: interpreted: ``build`` holds the settings of the ``test-reports build``
-#: command line, one sub-table per artifact it produces (``build.needs`` for a
-#: ``needs.json``), and this extension produces none of them.
-FOREIGN_TABLES = ("build",)
+#: The sub-table read by the ``test-reports convert`` command. It is not a
+#: bridge key: the build never maps it onto a ``tr_*`` value. It is validated
+#: like everything else, so that the build rejects the same typos the converter
+#: would -- one file, one verdict.
+CONVERT_TABLE = "convert"
+
+#: Keys of ``[test_reports.convert]``, in the order the converter documents
+#: them. The CLI's flag merge iterates this, so a key cannot be added here
+#: without the CLI being taught a default for it.
+CONVERSION_KEYS = (
+    "project",
+    "version",
+    "need_type",
+    "tags",
+    "link_properties",
+    "remote_url",
+    "commit",
+    "url_pattern",
+)
+
+#: Expected Python type per ``[test_reports.convert]`` key.
+_CONVERT_KEY_TYPES: dict[str, type[object]] = {
+    "project": str,
+    "version": str,
+    "need_type": str,
+    "tags": list,
+    "link_properties": dict,
+    "remote_url": str,
+    "commit": str,
+    "url_pattern": str,
+}
 
 #: Expected Python type per key. ``bool`` must be checked *before* ``int``
 #: (bool is an int subclass). ``None`` marks the dual-spelling keys, which are
@@ -129,7 +158,7 @@ _KEY_TYPES: dict[str, type[object] | None] = {
     "property_link_types": dict,
     "json_mapping": dict,
     "deterministic_case_ids": bool,
-    "build": dict,
+    "convert": dict,
 }
 
 #: Required type of the *values* inside a table-valued key. Without this a
@@ -141,12 +170,16 @@ _KEY_TYPES: dict[str, type[object] | None] = {
 _DICT_VALUE_TYPES: dict[str, type[object] | None] = {
     "property_link_types": str,
     "json_mapping": None,
-    "build": None,
+    "link_properties": str,
 }
 
 #: Field order of the positional ``tr_file``-style lists, and the table keys
 #: that spell the same thing readably.
 _TYPE_ENTRY_FIELDS = ("directive", "type", "name", "prefix", "color", "style")
+
+#: Index of ``type`` within :data:`_TYPE_ENTRY_FIELDS`, i.e. of the need type
+#: inside a normalised entry.
+_TYPE_FIELD_INDEX = _TYPE_ENTRY_FIELDS.index("type")
 
 #: ``tomllib.TOMLDecodeError`` bound through an annotation: the attribute
 #: expression itself is typed loosely enough to trip the strict ``Any`` bans,
@@ -322,8 +355,8 @@ def _normalise_section(
             _wrong_type(key, value, expected, path)
         if expected is not None and not isinstance(value, expected):
             _wrong_type(key, value, expected, path)
-        if key in FOREIGN_TABLES:
-            normalised[key] = value
+        if key == CONVERT_TABLE:
+            normalised[key] = _normalise_convert_table(value, path, warn)
         elif key in _DUAL_SPELLING_KEYS:
             normalised[key] = _normalise_type_entry(key, value, path)
         else:
@@ -333,7 +366,72 @@ def _normalise_section(
                 _check_table_values(key, value, path)
             normalised[key] = value
 
+    _check_need_type_agreement(normalised, path)
     return _anchor_paths(normalised, path.parent)
+
+
+def _normalise_convert_table(
+    value: object, path: Path, warn: Callable[[str], None] | None
+) -> dict[str, object]:
+    """Validate ``[test_reports.convert]`` under the section's own policy.
+
+    Same rules as the section: a known key with the wrong type is fatal, an
+    unknown key is reported and dropped, table values are checked. The caller
+    has already established that *value* is a table.
+    """
+    if not isinstance(value, Mapping):
+        return {}
+    table: dict[str, object] = {str(name): item for name, item in value.items()}
+    unknown = sorted(set(table) - set(_CONVERT_KEY_TYPES))
+    if unknown and warn is not None:
+        warn(
+            f"{path}: ignoring unknown key(s) in [{SECTION}.{CONVERT_TABLE}]: "
+            f"{', '.join(unknown)}. Supported keys: "
+            f"{', '.join(CONVERSION_KEYS)}"
+        )
+    normalised: dict[str, object] = {}
+    for key, item in table.items():
+        if key in unknown:
+            continue
+        label = f"{CONVERT_TABLE}.{key}"
+        expected = _CONVERT_KEY_TYPES[key]
+        if not isinstance(item, expected):
+            _wrong_type(label, item, expected, path)
+        if expected is list:
+            _check_list_items(label, item, path)
+        elif expected is dict:
+            _check_table_values(key, item, path, label)
+        normalised[key] = item
+    return normalised
+
+
+def _check_need_type_agreement(section: Mapping[str, object], path: Path) -> None:
+    """``convert.need_type`` and ``case``'s type name the same need type.
+
+    They are separate keys with separate consumers -- the converter derives the
+    need type and the deterministic-ID prefix from ``need_type``, the Sphinx
+    build from ``case``'s ``type`` -- and both default to ``testcase``. Letting
+    them disagree produces exactly the divergence this file exists to prevent:
+    a ``needs.json`` full of ``testcase__*`` needs that the build neither
+    registers nor cross-links.
+    """
+    convert = section.get(CONVERT_TABLE)
+    case = section.get("case")
+    if not isinstance(convert, Mapping) or not isinstance(case, Sequence):
+        return
+    need_type: object = convert.get("need_type")
+    if not isinstance(need_type, str):
+        return
+    case_type: object = case[_TYPE_FIELD_INDEX]
+    if case_type != need_type:
+        msg = (
+            f"{path}: [{SECTION}.{CONVERT_TABLE}] need_type is {need_type!r} but "
+            f"[{SECTION}] case's type is {case_type!r}. Both name the need type "
+            f"of a test case -- need_type for the converter, case for the Sphinx "
+            f"build -- so they must agree, or the produced needs.json and the "
+            f"build describe different need types."
+        )
+        raise TomlConfigError(msg)
 
 
 def _check_list_items(key: str, value: object, path: Path) -> None:
@@ -345,11 +443,14 @@ def _check_list_items(key: str, value: object, path: Path) -> None:
             _wrong_type(key, value, list, path)
 
 
-def _check_table_values(key: str, value: object, path: Path) -> None:
+def _check_table_values(
+    key: str, value: object, path: Path, label: str | None = None
+) -> None:
     """Every value of a table-valued key must have the declared type.
 
     Skipped for keys whose nested shape is free-form (:data:`_DICT_VALUE_TYPES`
-    maps them to ``None``).
+    maps them to ``None``). *label* is how the key is spelled in messages when
+    it sits in a sub-table.
     """
     expected = _DICT_VALUE_TYPES.get(key)
     if expected is None or not isinstance(value, Mapping):
@@ -357,7 +458,7 @@ def _check_table_values(key: str, value: object, path: Path) -> None:
     for name, item in value.items():
         if not isinstance(item, expected):
             msg = (
-                f"{path}: [{SECTION}] {key}.{name} must be "
+                f"{path}: [{SECTION}] {label or key}.{name} must be "
                 f"{_type_label(expected)}, got {type(item).__name__}: {item!r}"
             )
             raise TomlConfigError(msg)
