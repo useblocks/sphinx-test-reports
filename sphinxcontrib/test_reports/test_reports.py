@@ -1,5 +1,4 @@
 # fmt: off
-import inspect
 import os
 
 from docutils.parsers.rst import directives
@@ -9,6 +8,7 @@ from sphinx.util import logging
 
 # from docutils import nodes
 from sphinx_needs.api import add_dynamic_function, add_need_type
+from sphinx_needs.exceptions import NeedsApiConfigWarning
 
 from sphinxcontrib.test_reports.directives.test_case import TestCase, TestCaseDirective
 from sphinxcontrib.test_reports.directives.test_env import EnvReport, EnvReportDirective
@@ -52,36 +52,34 @@ FIELD_DESCRIPTIONS = {
 }
 
 try:
+    # sphinx-needs >= 8.5: fields are registered through add_field.
     from sphinx_needs.api import add_field as _add_field
 
     def _register_field(app, name, schema=None):
         description = FIELD_DESCRIPTIONS.get(name, name)
         try:
             _add_field(name, description, schema=schema)
-        except Exception:
-            # Field already registered (e.g. via needs_fields or needs_extra_options
-            # in conf.py). Skip to avoid duplicate registration errors.
-            log = logging.getLogger(__name__)
-            log.debug(f"Field '{name}' already registered, skipping")
+        except NeedsApiConfigWarning:
+            # Already registered, e.g. via needs_fields or needs_extra_options
+            # in conf.py. Anything else is a real error and must surface.
+            logging.getLogger(__name__).debug(
+                f"Field '{name}' already registered, skipping"
+            )
 
 except ImportError:
     from sphinx_needs.api import add_extra_option as _add_extra_option
 
-    _add_extra_option_supports_description = (
-        "description" in inspect.signature(_add_extra_option).parameters
-    )
-
     def _register_field(app, name, schema=None):
-        kwargs = {}
-        if _add_extra_option_supports_description:
-            kwargs["description"] = FIELD_DESCRIPTIONS.get(name, name)
-        if schema is not None:
-            kwargs["schema"] = schema
+        # add_extra_option takes description and schema from sphinx-needs
+        # 6.0.1 on, which is the package's floor.
         try:
-            _add_extra_option(app, name, **kwargs)
-        except Exception:
-            log = logging.getLogger(__name__)
-            log.debug(f"Field '{name}' already registered, skipping")
+            _add_extra_option(
+                app, name, description=FIELD_DESCRIPTIONS.get(name, name), schema=schema
+            )
+        except NeedsApiConfigWarning:
+            logging.getLogger(__name__).debug(
+                f"Field '{name}' already registered, skipping"
+            )
 
 
 def setup(app: Sphinx):
