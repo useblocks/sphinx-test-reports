@@ -174,7 +174,10 @@ the commit a CI job is converting for. ``--link-property``, given at all,
 replaces the whole ``link_properties`` table. ``--config PATH`` reads a
 different file (used as-is, not searched for, and it must exist);
 ``--no-config`` ignores declarative configuration entirely, so the output
-depends only on the arguments given.
+depends only on the arguments given. A run without a file is quiet by default
+-- most projects have none -- but ``-v`` says which file was read, or where the
+search ended and why, so a misplaced file can be placed right; the Sphinx build
+says the same at ``sphinx-build -v``.
 
 **Validation** follows the file's own policy: a known key with the wrong type
 stops the conversion with an error, an unknown key is reported on stderr and
@@ -212,7 +215,7 @@ All options
 .. code-block:: text
 
    test-reports build needs FILE [FILE ...] --output PATH
-                            [--config PATH | --no-config]
+                            [--config PATH | --no-config] [-v]
                         [--project NAME] [--version KEY]
                         [--need-type TYPE] [--tags TAGS]
                         [--extra-option NAME] [--link-property PROPERTY=LINK_FIELD]

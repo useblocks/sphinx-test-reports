@@ -150,6 +150,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"Source-URL template (default: {DEFAULT_URL_PATTERN}).",
     )
+    convert.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=(
+            "Say on stderr which declarative config file was used, or where "
+            "the search for one ended. Off by default: most runs have no file "
+            "and should stay quiet, but a misplaced one must be diagnosable."
+        ),
+    )
     config_source = convert.add_mutually_exclusive_group()
     config_source.add_argument(
         "--config",
@@ -245,20 +255,27 @@ def _load_section(
     The default file is searched for upwards from the working directory, since
     it conventionally sits at the project root while the converter runs from
     wherever CI invoked it. That is also where the Sphinx side looks, so both
-    consumers read the same file.
+    consumers read the same file. With ``--verbose`` the search reports where
+    it ended and which file was used -- the same posture as the Sphinx bridge,
+    which says the same at ``sphinx-build -v``.
     """
     if arguments.no_config:
         return {}, None, None
+
+    def verbose(message: str) -> None:
+        if arguments.verbose:
+            print(message, file=sys.stderr)
 
     if arguments.config is not None:
         path = Path(arguments.config)
         if not path.is_file():
             return {}, None, f"error: no such config file: {path}"
     else:
-        found = find_project_config(Path.cwd())
+        found = find_project_config(Path.cwd(), report=verbose)
         if found is None:
             return {}, None, None
         path = found
+    verbose(f"reading [{SECTION}] from {path}")
 
     try:
         section = load_project_config(path, _warn) or {}

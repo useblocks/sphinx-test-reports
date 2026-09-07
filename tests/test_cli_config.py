@@ -215,6 +215,38 @@ class TestFileLookup:
             )
 
 
+class TestVerbosity:
+    """A config-less run is quiet; ``-v`` makes a misplaced file diagnosable."""
+
+    def test_a_configless_run_is_quiet_by_default(self, tmp_path, capsys):
+        # Nothing about the search on stderr -- other diagnostics (here the
+        # fixture's missing source lines) are not what is under test.
+        code, _ = run_convert(tmp_path, [])
+        assert code == 0
+        err = capsys.readouterr().err
+        assert DEFAULT_TOML_FILENAME not in err
+        assert "repository root" not in err
+
+    def test_verbose_reports_where_the_search_ended(self, tmp_path, capsys):
+        # The same message the loader gives the Sphinx bridge at -v: the
+        # directory whose marker ended the search, so a misplaced file can be
+        # placed right.
+        code, _ = run_convert(tmp_path, ["-v"], subdir="build/testlogs")
+        assert code == 0
+        err = capsys.readouterr().err
+        assert f"no {DEFAULT_TOML_FILENAME} in" in err
+        assert "repository root" in err and str(tmp_path) in err
+
+    def test_verbose_names_the_file_used(self, tmp_path, capsys):
+        code, _ = run_convert(
+            tmp_path, ["--verbose"], toml='[test_reports.convert]\nproject = "p"\n'
+        )
+        assert code == 0
+        err = capsys.readouterr().err
+        assert "reading [test_reports] from" in err
+        assert DEFAULT_TOML_FILENAME in err
+
+
 class TestDiagnostics:
     """Errors name what the user wrote, and warnings do not stop the run."""
 
