@@ -11,9 +11,11 @@ read it as a build action without the documentation toolchain installed.
 
 The keys are the Sphinx-facing configuration (:data:`BRIDGE_KEYS`), spelled
 like the ``tr_*`` config values without the prefix. One sub-table belongs to
-another consumer: a report converter reads ``[test_reports.convert]``, which
-this reader passes through without interpreting it (:data:`FOREIGN_TABLES`).
-Any other sub-table is an unknown key like any other.
+another consumer: ``[test_reports.build]`` holds what the ``test-reports
+build`` command line produces -- ``[test_reports.build.needs]`` for its
+``needs.json`` -- which this reader passes through without interpreting it
+(:data:`FOREIGN_TABLES`). Any other sub-table is an unknown key like any
+other.
 
 **Error policy.** A known key carrying the wrong type is fatal: that is the
 typo class this validation exists to catch, and letting it through would
@@ -90,9 +92,10 @@ _DUAL_SPELLING_KEYS = ("file", "suite", "case")
 
 #: Sub-tables of the section that belong to another consumer. They are
 #: recognised so they do not draw an unknown-key warning, and deliberately not
-#: interpreted: ``convert`` holds the settings for turning test reports into a
-#: ``needs.json`` outside Sphinx, which this extension never does.
-FOREIGN_TABLES = ("convert",)
+#: interpreted: ``build`` holds the settings of the ``test-reports build``
+#: command line, one sub-table per artifact it produces (``build.needs`` for a
+#: ``needs.json``), and this extension produces none of them.
+FOREIGN_TABLES = ("build",)
 
 #: Expected Python type per key. ``bool`` must be checked *before* ``int``
 #: (bool is an int subclass). ``None`` marks the dual-spelling keys, which are
@@ -114,7 +117,7 @@ _KEY_TYPES: dict[str, type[object] | None] = {
     "property_link_types": dict,
     "json_mapping": dict,
     "deterministic_case_ids": bool,
-    "convert": dict,
+    "build": dict,
 }
 
 #: Required type of the *values* inside a table-valued key. Without this a
@@ -126,7 +129,7 @@ _KEY_TYPES: dict[str, type[object] | None] = {
 _DICT_VALUE_TYPES: dict[str, type[object] | None] = {
     "property_link_types": str,
     "json_mapping": None,
-    "convert": None,
+    "build": None,
 }
 
 #: Field order of the positional ``tr_file``-style lists, and the table keys

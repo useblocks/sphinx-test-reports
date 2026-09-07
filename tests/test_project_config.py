@@ -67,16 +67,16 @@ class TestLoader:
         assert config["property_link_types"] == {"request": "req"}
 
     def test_foreign_sub_table_is_kept_without_a_warning(self, tmp_path):
-        # [test_reports.convert] belongs to the report converter. This reader
-        # must neither complain about it nor apply it to a tr_* value -- the
-        # section describes the project, not just this extension.
+        # [test_reports.build] belongs to the command line. This reader must
+        # neither complain about it nor apply it to a tr_* value -- the section
+        # describes the project, not just this extension.
         _write(
             tmp_path,
             """
             [test_reports]
             file_option = "report_file"
 
-            [test_reports.convert]
+            [test_reports.build.needs]
             project = "demo"
             need_type = "check"
             """,
@@ -84,7 +84,7 @@ class TestLoader:
         reported = []
         section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME, reported.append)
         assert reported == []
-        assert section["convert"] == {"project": "demo", "need_type": "check"}
+        assert section["build"] == {"needs": {"project": "demo", "need_type": "check"}}
         assert not set(FOREIGN_TABLES) & set(BRIDGE_KEYS)
 
     def test_unknown_key_is_reported_but_not_fatal(self, tmp_path):
