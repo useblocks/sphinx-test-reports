@@ -94,7 +94,15 @@ into a link field instead, map it -- the value is split on commas:
        --link-property FullyVerifies=fully_verifies
 
 Mapped link fields are written even when a case has no such property, so a schema
-can require them.
+can require them. A test run that names its link properties
+``PartiallyVerifies`` and ``FullyVerifies`` is configured as
+
+.. code-block:: toml
+
+   [test_reports.convert]
+   link_properties = { PartiallyVerifies = "partially_verifies", FullyVerifies = "fully_verifies" }
+
+and lists ``TestType`` and ``DerivationTechnique`` in ``extra_options``.
 
 A property whose name is already taken by a built-in field (``result``,
 ``file``, ``time``, ...) or by a mapped link field is not exported: the built-in
@@ -194,7 +202,9 @@ Missing source locations
 If no test case in a report carries a ``line`` attribute, the command says so on
 stderr. The usual cause is pytest's default ``junit_family = xunit2``, which
 filters ``file`` and ``line`` off ``<testcase>``; ``xunit1`` (or ``legacy``)
-emits them.
+emits them -- and only through the ``record_xml_attribute`` fixture, which a
+stock run never calls. A test run therefore has to set ``junit_family`` and
+write the attributes itself for the source location to reach the needs.
 
 All options
 -----------
