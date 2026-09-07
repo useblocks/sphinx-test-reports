@@ -501,7 +501,7 @@ class TestImportIntoABuild:
 
         docs = tmp_path / "docs"
         copytree(Path(__file__).parent / "doc_test" / "basic_doc", docs)
-        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+        (tmp_path / ".git").mkdir(exist_ok=True)  # bounds the upward search
         with (docs / "conf.py").open("a", encoding="utf-8") as handle:
             # The IDs are lowercase; sphinx-needs' default regex is not.
             handle.write('\nneeds_id_regex = "^[A-Za-z0-9_]{5,}"\n')

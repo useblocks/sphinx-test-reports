@@ -33,7 +33,7 @@ def run_convert(tmp_path, arguments, toml=None, config_name=None, subdir=None):
     A project-root marker bounds the upward search, so the outcome never depends
     on what happens to sit above the temporary directory.
     """
-    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    (tmp_path / ".git").mkdir(exist_ok=True)  # bounds the upward search
     if toml is not None:
         _write(tmp_path, toml, name=config_name or DEFAULT_TOML_FILENAME)
     workdir = tmp_path
