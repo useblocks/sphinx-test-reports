@@ -347,8 +347,10 @@ class TestDiscovery:
     """The upward search that lets both consumers find the same file.
 
     The search is bounded by the repository root -- the directory holding
-    ``.git`` -- and by nothing else: a ``pyproject.toml`` on the way up marks a
-    Python distribution, not the project, and must not end the search.
+    ``.git``: a ``pyproject.toml`` on the way up marks a Python distribution,
+    not the project, and must not end the search. Outside any repository there
+    is no such root, so the distribution root bounds it instead -- otherwise
+    the walk reaches the filesystem root and adopts a stranger's file.
     """
 
     def test_finds_the_file_in_the_starting_directory(self, tmp_path):
@@ -393,6 +395,52 @@ class TestDiscovery:
         docs.mkdir(parents=True)
         (inner / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
         assert find_project_config(docs) is None
+
+    def test_stops_at_the_distribution_root_without_a_repository(self, tmp_path):
+        # An unpacked sdist, a CI artefact directory, an exported docs tree:
+        # no .git anywhere, so nothing above would end the walk and a
+        # stranger's file further up would be adopted. The distribution root
+        # bounds the search instead, so it is not.
+        _write(tmp_path, "[test_reports]\n")  # a stranger's, two levels up
+        dist = tmp_path / "downloads" / "sphinx-test-reports-1.4.0"
+        docs = dist / "docs"
+        docs.mkdir(parents=True)
+        (dist / "pyproject.toml").write_text("", encoding="utf-8")
+        assert find_project_config(docs) is None
+
+    def test_the_file_at_the_distribution_root_is_still_found(self, tmp_path):
+        # The distribution root bounds the search without hiding a file that
+        # sits on it: an sdist shipping its own ubproject.toml is configured
+        # by it.
+        dist = tmp_path / "sphinx-test-reports-1.4.0"
+        docs = dist / "docs"
+        docs.mkdir(parents=True)
+        (dist / "pyproject.toml").write_text("", encoding="utf-8")
+        config = _write(dist, "[test_reports]\n")
+        assert find_project_config(docs) == config
+
+    def test_a_repository_marker_outranks_a_distribution_root(self, tmp_path):
+        # The distribution root is only the fallback boundary. Inside a
+        # repository the walk still passes a pyproject.toml on the way up --
+        # the workspace-member layout above depends on it.
+        (tmp_path / ".git").mkdir()
+        config = _write(tmp_path, "[test_reports]\n")
+        member = tmp_path / "packages" / "dist"
+        docs = member / "docs"
+        docs.mkdir(parents=True)
+        (member / "pyproject.toml").write_text("", encoding="utf-8")
+        assert find_project_config(docs) == config
+
+    def test_a_fruitless_search_reports_the_distribution_root(self, tmp_path):
+        dist = tmp_path / "sphinx-test-reports-1.4.0"
+        docs = dist / "docs"
+        docs.mkdir(parents=True)
+        (dist / "pyproject.toml").write_text("", encoding="utf-8")
+        reported = []
+        assert find_project_config(docs, report=reported.append) is None
+        assert len(reported) == 1
+        assert f"distribution root {dist}" in reported[0]
+        assert "pyproject.toml" in reported[0]
 
     def test_the_file_wins_over_the_marker_in_one_directory(self, tmp_path):
         # The root marker only ends a *fruitless* step; a repository root
@@ -640,3 +688,33 @@ class TestSphinxFree:
             [sys.executable, "-c", code], capture_output=True, text=True
         )
         assert result.returncode == 0, result.stderr
+
+    def test_a_missing_sphinx_needs_is_an_extension_error(self):
+        # The lazy `setup` owns the message Sphinx would have produced for a
+        # broken extension import, because Sphinx fetches `setup` with
+        # getattr() and would otherwise show a raw traceback. Sphinx renders
+        # the wrapped exception itself, so the message must not carry it a
+        # second time. Checked in a subprocess: sphinx_needs is importable
+        # here.
+        code = (
+            "import sys\n"
+            "sys.modules['sphinx_needs'] = None\n"  # `from sphinx_needs...` fails
+            "import sphinxcontrib.test_reports as pkg\n"
+            "from sphinx.errors import ExtensionError\n"
+            "try:\n"
+            "    pkg.setup\n"
+            "except ExtensionError as error:\n"
+            "    print(error)\n"
+            "else:\n"
+            "    raise AssertionError('no ExtensionError')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stderr
+        message = result.stdout.strip()
+        assert message.startswith(
+            "Could not import extension sphinxcontrib.test_reports"
+        )
+        assert message.count("(exception:") == 1
+        assert "sphinx_needs" in message

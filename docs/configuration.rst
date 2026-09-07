@@ -9,6 +9,8 @@ The following options can be set inside the ``conf.py`` file of your Sphinx proj
 .. contents::
    :local:
 
+.. _tr_rootdir:
+
 tr_rootdir
 ----------
 ``tr_rootdir`` takes a path, which is used as *root dir* for all provided file paths in other directives.
@@ -72,6 +74,8 @@ By default ``tr_case`` is set to::
    ['test-case', 'testcase', 'test-case', 'TC_', '#999999', 'node']
 
 Please read :ref:`tr_file` for more details.
+
+.. _tr_report_template:
 
 tr_report_template
 ------------------
@@ -423,6 +427,8 @@ acting on it works from the same settings instead of each restating them.
    deterministic_case_ids = true
    extra_options = ["more_info", "priority"]
    property_link_types = { request = "req" }
+   # Base directory the directives look their report files up under -- not an
+   # output directory. Relative to this file, see Paths below.
    rootdir = "docs"
 
    # Need types: named tables (recommended) ...
@@ -462,10 +468,15 @@ file, which beats ``conf.py``, which beats the built-in default. The
 declarative file is the source of truth for the project; the command line stays
 the per-invocation escape hatch.
 
-**Paths.** Relative values of ``rootdir`` and ``report_template`` are resolved
-against the directory containing the TOML file (not against ``conf.py`` or the
-working directory), so both consumers resolve them identically and the file
-stays self-describing when moved as a unit.
+**Paths.** ``rootdir`` (:ref:`tr_rootdir`) is the directory the relative report
+paths in the directives are resolved against -- with ``rootdir = "docs"``,
+``.. test-file:: reports/pytest.xml`` reads ``docs/reports/pytest.xml``. It is
+an input location, not an output directory: nothing is written there.
+``report_template`` (:ref:`tr_report_template`) names a custom template file.
+Relative values of both are resolved against the directory containing the TOML
+file (not against ``conf.py`` or the working directory), so both consumers
+resolve them identically and the file stays self-describing when moved as a
+unit.
 
 **Deterministic IDs.** A build that imports a ``needs.json`` carrying
 deterministic case IDs, next to locally created test-case needs, must set

@@ -54,10 +54,22 @@ SECTION = "test_reports"
 #: ``pyproject.toml`` beside ``conf.py``, or a workspace member in a monorepo
 #: (``packages/<name>/pyproject.toml`` with the docs below it), sits *inside*
 #: the project whose shared file is at the repository root, and a marker there
-#: would end the search before it reached the file -- silently.
+#: would end the search before it reached the file -- silently. It does bound
+#: the walk where there is no repository at all, see :data:`_DIST_MARKERS`.
 #: ``ubproject.toml`` itself is not listed -- finding it is the success case,
 #: checked first in every directory.
 _ROOT_MARKERS = (".git",)
+
+#: Directory entries that end the search when *no* :data:`_ROOT_MARKERS` marker
+#: exists anywhere above the starting directory. A tree outside any repository
+#: -- an unpacked sdist, a CI artefact directory, an exported docs tree -- has
+#: nothing to bound the walk, so it would reach the filesystem root and adopt
+#: the configuration of whatever unrelated directory happens to sit above it.
+#: The distribution root is the outermost thing that still belongs to such a
+#: tree. It bounds the search only as a fallback, never inside a repository:
+#: there, a ``pyproject.toml`` on the way up is a workspace member or a
+#: ``docs/`` dependency set, and must not end the search.
+_DIST_MARKERS = ("pyproject.toml",)
 
 #: Section keys bridged onto their ``tr_*`` Sphinx config values.
 BRIDGE_KEYS = (
@@ -164,12 +176,13 @@ def find_project_config(
     from wherever CI invoked it -- so anchoring strictly at the caller's own
     directory would leave the shared file unread by one of them, silently.
 
-    The walk ends at the first directory holding *filename*, or at the
-    repository root (:data:`_ROOT_MARKERS`) when that does not hold the file
-    either: nothing above the root belongs to the project, so a consumer never
-    adopts the configuration of an unrelated parent. Nothing else bounds the
-    search -- in particular a ``pyproject.toml`` on the way up does not, see
-    :data:`_ROOT_MARKERS` for why.
+    The walk ends at the first directory holding *filename*, or at the project
+    boundary when that does not hold the file either: nothing above the
+    boundary belongs to the project, so a consumer never adopts the
+    configuration of an unrelated parent. The boundary is the repository root
+    (:data:`_ROOT_MARKERS`), or -- outside any repository only -- the
+    distribution root (:data:`_DIST_MARKERS`); see both for why a
+    ``pyproject.toml`` bounds the one case and not the other.
 
     :param start: Directory to start from. Made absolute -- without resolving
         symlinks -- so that a relative path has parents to walk.
@@ -179,27 +192,45 @@ def find_project_config(
         missing file is not necessarily a problem -- most projects have none
         -- but a fruitless search must not be silent, or a misplaced file
         cannot be diagnosed.
-    :return: The file, or ``None`` when the search reached the repository root
+    :return: The file, or ``None`` when the search reached the project boundary
         or the filesystem root without finding one.
     """
     start = start.absolute()
-    boundary = "the filesystem root"
-    for directory in (start, *start.parents):
+    directories = (start, *start.parents)
+    boundary, described = _boundary(directories)
+    for directory in directories:
         candidate = directory / filename
         if candidate.is_file():
             return candidate
-        marker = _root_marker(directory)
-        if marker is not None:
-            boundary = f"the repository root {directory} (holding {marker})"
+        if directory == boundary:
             break
     if report is not None:
-        report(f"no {filename} in {start} or its parents up to {boundary}")
+        report(f"no {filename} in {start} or its parents up to {described}")
     return None
 
 
-def _root_marker(directory: Path) -> str | None:
-    """The entry of :data:`_ROOT_MARKERS` that *directory* holds, if any."""
-    for marker in _ROOT_MARKERS:
+def _boundary(directories: tuple[Path, ...]) -> tuple[Path | None, str]:
+    """The directory the upward search must not walk past, and its description.
+
+    A repository root anywhere above the start wins: inside a repository the
+    only thing that bounds the project is the repository itself. Only when
+    there is none does the distribution root bound the walk -- which is what
+    keeps a tree outside any repository from reaching the filesystem root.
+    """
+    for markers, label in (
+        (_ROOT_MARKERS, "repository"),
+        (_DIST_MARKERS, "distribution"),
+    ):
+        for directory in directories:
+            marker = _marker(directory, markers)
+            if marker is not None:
+                return directory, f"the {label} root {directory} (holding {marker})"
+    return None, "the filesystem root"
+
+
+def _marker(directory: Path, markers: tuple[str, ...]) -> str | None:
+    """The entry of *markers* that *directory* holds, if any."""
+    for marker in markers:
         if (directory / marker).exists():
             return marker
     return None

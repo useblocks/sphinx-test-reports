@@ -21,14 +21,16 @@ def __getattr__(name: str) -> object:
             # with getattr(), which only tolerates AttributeError. Resolving
             # lazily would let a missing sphinx-needs escape as a raw
             # traceback, so the message Sphinx would have produced is raised
-            # here instead -- when Sphinx is there to receive it.
+            # here instead -- when Sphinx is there to receive it. The wrapped
+            # exception goes in the second argument only: ExtensionError.__str__
+            # renders it as "(exception: ...)", so spelling it out in the
+            # message too would print it twice.
             try:
                 from sphinx.errors import ExtensionError
             except ImportError:
                 raise error from None
             raise ExtensionError(
-                f"Could not import extension {__name__} (exception: {error})",
-                error,
+                f"Could not import extension {__name__}", error
             ) from error
 
         return setup
