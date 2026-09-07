@@ -25,7 +25,8 @@ Unreleased
 * Feature: Declarative configuration in the ``[test_reports]`` section of
   ``ubproject.toml``, the file shared with the other useblocks tooling, so a
   project is described once instead of being restated in ``conf.py``. The file
-  is searched for upwards from the ``confdir``, stopping at the project root;
+  is searched for upwards from the ``confdir``, stopping at the repository
+  root;
   the new ``tr_config_from_toml`` names or disables it. Precedence is ``-D`` >
   ``ubproject.toml`` > ``conf.py`` > default. See :ref:`tr_config_from_toml`.
 * Support: Python 3.10 is no longer supported. It reached the end of upstream

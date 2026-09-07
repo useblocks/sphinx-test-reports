@@ -442,13 +442,19 @@ acting on it works from the same settings instead of each restating them.
 wrong type is an error -- that is the typo class this validation exists to
 catch. An *unknown* key is reported as a warning and ignored: the file is
 shared with tools on independent release cadences, so a key this version does
-not model must not take your build down. Add ``"test_reports.unknown_key"`` to
-Sphinx's ``suppress_warnings`` to silence that report in a project that builds
-with ``-W``.
+not model must not take your build down.
 
-Sub-tables belonging to other tools are left alone. Settings for converting
-test reports into a ``needs.json`` outside Sphinx live under
-``[test_reports.convert]``, which this extension does not read.
+One sub-table belongs to another tool and is left alone: the settings for
+converting test reports into a ``needs.json`` outside Sphinx live under
+``[test_reports.convert]``, which this extension does not read. Any other
+sub-table is treated like any other unknown key -- reported and ignored.
+
+**Warnings.** The two warnings this feature emits carry a type, so either can
+be silenced through Sphinx's ``suppress_warnings`` in a project that builds
+with ``-W``: ``test_reports.unknown_key`` for the unknown-key report above, and
+``test_reports.missing_config`` for an explicitly named file that does not
+exist (see :ref:`tr_config_from_toml`). A known key with the wrong type is an
+error, not a warning, and cannot be suppressed.
 
 **Precedence.** ``-D`` on the ``sphinx-build`` command line beats the TOML
 file, which beats ``conf.py``, which beats the built-in default. The
@@ -474,15 +480,22 @@ Name of the declarative configuration file whose ``[test_reports]`` section is
 applied to the ``tr_*`` values above. Defaults to ``ubproject.toml``.
 
 With the default name, the file is searched for in your ``confdir`` and its
-parent directories, stopping at the project root (a directory holding ``.git``
-or ``pyproject.toml``). That is what lets the canonical layout work -- the
-shared ``ubproject.toml`` at the repository root, ``conf.py`` in ``docs/`` --
-and lets a tool started anywhere below the root find exactly the same file by
-searching upward in the same way. A missing default file is not an error.
+parent directories, up to the repository root (the directory holding ``.git``).
+That is what lets the canonical layout work -- the shared ``ubproject.toml`` at
+the repository root, ``conf.py`` in ``docs/`` -- and lets a tool started
+anywhere below the root find exactly the same file by searching upward in the
+same way. Only the repository root bounds the search: a ``pyproject.toml`` on
+the way up does not, so a ``docs/`` directory with its own ``pyproject.toml``
+and the documentation of a workspace member in a monorepo
+(``packages/<name>/docs/conf.py``) both find the file at the root. A missing
+default file is not an error; ``sphinx-build -v`` reports where the search
+ended.
 
 Set to any other value to name a file explicitly; it is resolved against the
-``confdir``, is not searched for, and a warning is emitted if it does not
-exist. Set to ``None`` to switch declarative configuration off entirely.
+``confdir``, is not searched for, and a warning of type
+``test_reports.missing_config`` is emitted if it does not exist -- the build
+then runs on the ``conf.py`` configuration. Set to ``None`` to switch
+declarative configuration off entirely.
 
 .. code-block:: python
 

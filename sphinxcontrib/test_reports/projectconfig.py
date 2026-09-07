@@ -10,9 +10,10 @@ not this extension, and a report-to-``needs.json`` converter has to be able to
 read it as a build action without the documentation toolchain installed.
 
 The keys are the Sphinx-facing configuration (:data:`BRIDGE_KEYS`), spelled
-like the ``tr_*`` config values without the prefix. The section may also carry
-sub-tables for tools other than the Sphinx extension -- a report converter
-reads ``[test_reports.convert]`` -- which this reader does not interpret.
+like the ``tr_*`` config values without the prefix. One sub-table belongs to
+another consumer: a report converter reads ``[test_reports.convert]``, which
+this reader passes through without interpreting it (:data:`FOREIGN_TABLES`).
+Any other sub-table is an unknown key like any other.
 
 **Error policy.** A known key carrying the wrong type is fatal: that is the
 typo class this validation exists to catch, and letting it through would
@@ -43,12 +44,18 @@ DEFAULT_TOML_FILENAME = "ubproject.toml"
 #: that ``[reports]`` is already taken, and means report *templates*.
 SECTION = "test_reports"
 
-#: Directory entries that end the upward search of
-#: :func:`find_project_config`. A directory carrying one of these is a project
-#: root, so a consumer below it must not silently adopt the configuration of
-#: an unrelated parent project. ``ubproject.toml`` itself is not listed --
-#: finding it is the success case, checked first.
-_ROOT_MARKERS = (".git", "pyproject.toml")
+#: Directory entries that end the upward search of :func:`find_project_config`.
+#: A directory carrying one is the repository root, and nothing above it belongs
+#: to the project, so a consumer never adopts the configuration of an unrelated
+#: parent. ``pyproject.toml`` is deliberately *not* a marker: it marks a Python
+#: distribution, not the project. A ``docs/`` directory with its own
+#: ``pyproject.toml`` beside ``conf.py``, or a workspace member in a monorepo
+#: (``packages/<name>/pyproject.toml`` with the docs below it), sits *inside*
+#: the project whose shared file is at the repository root, and a marker there
+#: would end the search before it reached the file -- silently.
+#: ``ubproject.toml`` itself is not listed -- finding it is the success case,
+#: checked first in every directory.
+_ROOT_MARKERS = (".git",)
 
 #: Section keys bridged onto their ``tr_*`` Sphinx config values.
 BRIDGE_KEYS = (
@@ -143,29 +150,55 @@ class TomlConfigError(Exception):
 
 
 def find_project_config(
-    start: Path, filename: str = DEFAULT_TOML_FILENAME
+    start: Path,
+    filename: str = DEFAULT_TOML_FILENAME,
+    report: Callable[[str], None] | None = None,
 ) -> Path | None:
     """Search *start* and its parents for *filename*.
 
-    The declarative file conventionally sits at the project root while its
+    The declarative file conventionally sits at the repository root while its
     consumers run from below it -- ``conf.py`` in ``docs/``, a build action
     from wherever CI invoked it -- so anchoring strictly at the caller's own
     directory would leave the shared file unread by one of them, silently.
 
-    The walk stops at the first directory holding *filename*, and at a
-    directory that looks like a project root (:data:`_ROOT_MARKERS`) even when
-    it does not hold the file, so a consumer never adopts the configuration of
-    an unrelated parent project.
+    The walk ends at the first directory holding *filename*, or at the
+    repository root (:data:`_ROOT_MARKERS`) when that does not hold the file
+    either: nothing above the root belongs to the project, so a consumer never
+    adopts the configuration of an unrelated parent. Nothing else bounds the
+    search -- in particular a ``pyproject.toml`` on the way up does not, see
+    :data:`_ROOT_MARKERS` for why.
 
-    :return: The file, or ``None`` when the search reached a project root or
-        the filesystem root without finding one.
+    :param start: Directory to start from. Made absolute -- without resolving
+        symlinks -- so that a relative path has parents to walk.
+    :param report: Called with one message when the search ends without the
+        file, naming the directory whose marker ended it. Callers pass their
+        own logger so this module stays Sphinx-free; ``None`` discards it. A
+        missing file is not necessarily a problem -- most projects have none
+        -- but a fruitless search must not be silent, or a misplaced file
+        cannot be diagnosed.
+    :return: The file, or ``None`` when the search reached the repository root
+        or the filesystem root without finding one.
     """
+    start = start.absolute()
+    boundary = "the filesystem root"
     for directory in (start, *start.parents):
         candidate = directory / filename
         if candidate.is_file():
             return candidate
-        if any((directory / marker).exists() for marker in _ROOT_MARKERS):
-            return None
+        marker = _root_marker(directory)
+        if marker is not None:
+            boundary = f"the repository root {directory} (holding {marker})"
+            break
+    if report is not None:
+        report(f"no {filename} in {start} or its parents up to {boundary}")
+    return None
+
+
+def _root_marker(directory: Path) -> str | None:
+    """The entry of :data:`_ROOT_MARKERS` that *directory* holds, if any."""
+    for marker in _ROOT_MARKERS:
+        if (directory / marker).exists():
+            return marker
     return None
 
 
@@ -384,11 +417,14 @@ def _normalise_type_entry(key: str, value: object, path: Path) -> list[str]:
 
 
 def _anchor_paths(section: dict[str, object], base: Path) -> dict[str, object]:
-    """Resolve :data:`PATH_KEYS` against *base* (the TOML file's directory).
+    """Anchor :data:`PATH_KEYS` at *base* (the TOML file's directory).
 
-    Joined but deliberately not ``resolve()``d: *base* is already absolute, and
-    resolving would collapse symlinks that the ``conf.py`` spelling of the same
-    option preserves, so the two spellings would not name the same directory.
+    Joined, deliberately not ``resolve()``d: *base* is already absolute, and
+    this module does not touch the filesystem to second-guess the form of the
+    path it was handed. Whether symlinks in it are collapsed is the consumer's
+    decision -- Sphinx resolves its ``confdir`` before the bridge ever runs, a
+    converter may pass its working directory as is -- and the loader must not
+    make that decision behind their back.
     """
     for key in PATH_KEYS:
         value = section.get(key)

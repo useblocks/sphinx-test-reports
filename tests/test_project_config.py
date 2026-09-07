@@ -7,6 +7,9 @@ the project declares.
 """
 
 import os
+import subprocess
+import sys
+from io import StringIO
 from pathlib import Path
 from shutil import copytree
 
@@ -17,6 +20,7 @@ from sphinxcontrib.test_reports.projectconfig import (
     BRIDGE_KEYS,
     DEFAULT_TOML_FILENAME,
     FOREIGN_TABLES,
+    SECTION,
     TomlConfigError,
     find_project_config,
     load_project_config,
@@ -227,6 +231,37 @@ class TestLoader:
         with pytest.raises(TomlConfigError, match="unknown typo"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
 
+    @pytest.mark.parametrize(
+        ("toml_source", "problem"),
+        [
+            # A non-string value inside the named table. Without the check the
+            # value is silently stringified and reaches sphinx-needs.
+            (
+                """
+                [test_reports.case]
+                directive = "test-case"
+                type = "testcase"
+                name = "Test-Case"
+                prefix = "TC_"
+                color = 999999
+                style = "rectangle"
+                """,
+                "non-string color",
+            ),
+            # A non-string element of the positional list.
+            (
+                '[test_reports]\ncase = ["test-case", "testcase", "Test-Case", "TC_", 999999, "rectangle"]\n',
+                "exactly 6 strings",
+            ),
+            # Too few elements.
+            ('[test_reports]\ncase = ["test-case", "testcase"]\n', "exactly 6 strings"),
+        ],
+    )
+    def test_need_type_values_must_be_strings(self, tmp_path, toml_source, problem):
+        _write(tmp_path, toml_source)
+        with pytest.raises(TomlConfigError, match=problem):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+
     def test_relative_paths_anchor_to_the_toml_directory(self, tmp_path):
         # The file is self-describing: moving it as a unit keeps its relative
         # paths meaningful, and both consumers resolve them identically.
@@ -309,44 +344,107 @@ class TestSphinxBridge:
 
 
 class TestDiscovery:
-    """The upward search that lets both consumers find the same file."""
+    """The upward search that lets both consumers find the same file.
+
+    The search is bounded by the repository root -- the directory holding
+    ``.git`` -- and by nothing else: a ``pyproject.toml`` on the way up marks a
+    Python distribution, not the project, and must not end the search.
+    """
 
     def test_finds_the_file_in_the_starting_directory(self, tmp_path):
         config = _write(tmp_path, "[test_reports]\n")
         assert find_project_config(tmp_path) == config
 
-    def test_walks_up_to_the_project_root(self, tmp_path):
+    def test_walks_up_to_the_repository_root(self, tmp_path):
+        (tmp_path / ".git").mkdir()
         config = _write(tmp_path, "[test_reports]\n")
         deep = tmp_path / "docs" / "source"
         deep.mkdir(parents=True)
         assert find_project_config(deep) == config
 
-    def test_stops_at_a_project_root_without_the_file(self, tmp_path):
-        # An unrelated parent project must not have its configuration adopted.
+    def test_a_pyproject_toml_beside_conf_py_does_not_end_the_search(self, tmp_path):
+        # docs/ carrying its own pyproject.toml (its own dependency set) still
+        # belongs to the project whose shared file sits at the repository root.
+        (tmp_path / ".git").mkdir()
+        config = _write(tmp_path, "[test_reports]\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "pyproject.toml").write_text("", encoding="utf-8")
+        assert find_project_config(docs) == config
+
+    def test_walks_past_a_workspace_member_pyproject_toml(self, tmp_path):
+        # A uv-workspace member: packages/<dist>/pyproject.toml with the docs
+        # below it, and one ubproject.toml at the repository root describing
+        # the whole monorepo.
+        (tmp_path / ".git").mkdir()
+        config = _write(tmp_path, "[test_reports]\n")
+        member = tmp_path / "packages" / "dist"
+        docs = member / "docs"
+        docs.mkdir(parents=True)
+        (member / "pyproject.toml").write_text("", encoding="utf-8")
+        assert find_project_config(docs) == config
+
+    def test_stops_at_a_nested_repository_without_the_file(self, tmp_path):
+        # A checkout nested inside another repository (a vendored tree, a
+        # submodule) must not adopt the outer repository's configuration.
         _write(tmp_path, "[test_reports]\n")
-        inner = tmp_path / "packages" / "inner"
-        inner.mkdir(parents=True)
-        (inner / "pyproject.toml").write_text("", encoding="utf-8")
-        assert find_project_config(inner) is None
+        inner = tmp_path / "vendor" / "inner"
+        docs = inner / "docs"
+        docs.mkdir(parents=True)
+        (inner / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        assert find_project_config(docs) is None
 
     def test_the_file_wins_over_the_marker_in_one_directory(self, tmp_path):
-        # Root markers only end a *fruitless* step; a root holding both is the
-        # normal case and must be found.
+        # The root marker only ends a *fruitless* step; a repository root
+        # holding the file is the canonical layout and must be found.
         config = _write(tmp_path, "[test_reports]\n")
-        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+        (tmp_path / ".git").mkdir()
         assert find_project_config(tmp_path) == config
 
     def test_missing_file_is_none(self, tmp_path):
         (tmp_path / ".git").mkdir()
         assert find_project_config(tmp_path) is None
 
+    def test_a_fruitless_search_reports_where_it_ended(self, tmp_path):
+        # "Not found" must not be silent: the report names the directory whose
+        # marker ended the search, so a misplaced file can be diagnosed.
+        (tmp_path / ".git").mkdir()
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        reported = []
+        assert find_project_config(docs, report=reported.append) is None
+        assert len(reported) == 1
+        assert str(docs) in reported[0]
+        assert f"repository root {tmp_path}" in reported[0]
+        assert ".git" in reported[0]
+
+    def test_a_successful_search_reports_nothing(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        _write(tmp_path, "[test_reports]\n")
+        reported = []
+        find_project_config(tmp_path / "docs", report=reported.append)
+        assert reported == []
+
+    def test_a_relative_start_is_searched_from_the_working_directory(
+        self, tmp_path, monkeypatch
+    ):
+        # A converter started with a relative path must still see the parents.
+        (tmp_path / ".git").mkdir()
+        config = _write(tmp_path, "[test_reports]\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        monkeypatch.chdir(docs)
+        assert find_project_config(Path(".")) == config
+
 
 class TestPathAnchoring:
-    """Relative paths resolve the same way for both consumers."""
+    """Relative paths anchor at the TOML file's directory, as given."""
 
-    def test_symlinked_directories_are_preserved(self, tmp_path):
-        # conf.py's spelling of tr_rootdir does not collapse symlinks, so the
-        # TOML spelling must not either, or the two name different directories.
+    def test_anchoring_does_not_resolve_the_given_directory(self, tmp_path):
+        # The loader leaves the form of the directory it was handed alone -- a
+        # symlinked path stays symlinked. Whether to resolve it is the
+        # consumer's call (Sphinx resolves its confdir before the bridge runs),
+        # not something the loader decides behind its back.
         real = tmp_path / "real"
         real.mkdir()
         link = tmp_path / "link"
@@ -357,11 +455,14 @@ class TestPathAnchoring:
 
 
 def _build(srcdir, **kwargs):
-    """Set up a Sphinx application, returning it with its warning output."""
-    from io import StringIO
+    """Set up a Sphinx application, returning it with its warning output.
 
+    Pass ``status=StringIO()`` (and ``verbosity=1``) to capture the
+    informational output as well; it is discarded by default.
+    """
     from sphinx.application import Sphinx
 
+    kwargs.setdefault("status", None)
     warnings = StringIO()
     app = Sphinx(
         srcdir=srcdir,
@@ -370,7 +471,6 @@ def _build(srcdir, **kwargs):
         doctreedir=srcdir / "_build" / "doctrees",
         buildername="html",
         freshenv=True,
-        status=None,
         warning=warnings,
         **kwargs,
     )
@@ -381,7 +481,7 @@ def _basic_doc(tmp_path, toml=None, conf_extra=""):
     docs = tmp_path / "docs"
     copytree(Path(__file__).parent / "doc_test" / "basic_doc", docs)
     # Bound the upward search so the outcome cannot depend on the sandbox.
-    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    (tmp_path / ".git").mkdir()
     if toml is not None:
         _write(docs, toml)
     if conf_extra:
@@ -446,3 +546,97 @@ class TestBridgePrecedence:
         _write(tmp_path, "[test_reports]\nfile_option = 'from_the_root'\n")
         app, _ = _build(docs)
         assert app.config.tr_file_option == "from_the_root"
+
+    def test_walks_past_a_pyproject_toml_beside_conf_py(self, tmp_path):
+        # The docs directory being a distribution of its own does not make it
+        # the project root; the shared file above it must still be found.
+        docs = _basic_doc(tmp_path)
+        (docs / "pyproject.toml").write_text("", encoding="utf-8")
+        _write(tmp_path, "[test_reports]\nfile_option = 'from_the_root'\n")
+        app, _ = _build(docs)
+        assert app.config.tr_file_option == "from_the_root"
+
+    def test_a_fruitless_search_says_where_it_ended(self, tmp_path):
+        # Not an error and not a warning -- most projects have no file -- but
+        # visible with -v, so a misplaced file can be diagnosed.
+        docs = _basic_doc(tmp_path)
+        status = StringIO()
+        _build(docs, status=status, verbosity=1)
+        assert f"repository root {tmp_path}" in status.getvalue()
+
+
+def _documented_toml_example():
+    """The ``[test_reports]`` example of ``docs/configuration.rst``, verbatim.
+
+    Read from the docs rather than copied, so the test fails when the example
+    and the code drift apart -- the example is what a project copies.
+    """
+    text = (Path(__file__).parents[1] / "docs" / "configuration.rst").read_text(
+        encoding="utf-8"
+    )
+    section = text[text.index("Declarative configuration (ubproject.toml)") :]
+    directive = ".. code-block:: toml\n"
+    body = section[section.index(directive) + len(directive) :].splitlines()
+    block = []
+    for line in body[1:]:  # skip the blank line after the directive
+        if line and not line.startswith("   "):
+            break
+        block.append(line[3:])
+    return "\n".join(block) + "\n"
+
+
+class TestConfvalTypes:
+    """The bridged values must pass Sphinx's own confval type check.
+
+    ``check_confval_types`` runs at ``config-inited`` after the bridge and
+    compares each value's type with its default's. ``tr_rootdir`` defaults to
+    Sphinx's ``confdir`` -- a ``_StrPath`` -- so a plain string, the only thing
+    TOML (or a string literal in ``conf.py``) can supply, drew a warning, and a
+    project building with ``-W`` failed on the documented example.
+    """
+
+    def test_rootdir_from_toml_is_not_a_type_warning(self, tmp_path):
+        docs = _basic_doc(tmp_path)
+        _write(tmp_path, '[test_reports]\nrootdir = "docs"\n')
+        app, warnings = _build(docs)
+        assert "tr_rootdir" not in warnings
+        assert app.config.tr_rootdir == str(tmp_path / "docs")
+
+    def test_rootdir_as_a_string_in_conf_py_is_not_a_type_warning(self, tmp_path):
+        docs = _basic_doc(tmp_path, conf_extra='tr_rootdir = "."')
+        _, warnings = _build(docs)
+        assert "tr_rootdir" not in warnings
+
+    def test_the_documented_example_applies_without_warnings(self, tmp_path):
+        docs = _basic_doc(tmp_path)
+        _write(tmp_path, _documented_toml_example())
+        app, warnings = _build(docs)
+        own = [
+            line
+            for line in warnings.splitlines()
+            if "tr_" in line or "ubproject" in line or f"[{SECTION}]" in line
+        ]
+        assert own == []
+        assert app.config.tr_file_option == "report_file"
+        assert app.config.tr_rootdir == str(tmp_path / "docs")
+        assert app.config.tr_case[0] == "test-case"
+
+
+class TestSphinxFree:
+    """A consumer without the documentation toolchain can read the section."""
+
+    def test_projectconfig_imports_without_sphinx(self):
+        # Importing the module runs the package __init__, so the package must
+        # not import Sphinx eagerly either -- or a build action that turns
+        # reports into a needs.json dies with ModuleNotFoundError wherever
+        # Sphinx is not installed. Checked in a subprocess: this process has
+        # Sphinx imported already.
+        code = (
+            "import sys\n"
+            "sys.modules['sphinx'] = None\n"  # any `import sphinx...` now fails
+            "import sphinxcontrib.test_reports.projectconfig\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stderr

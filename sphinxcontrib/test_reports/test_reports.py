@@ -91,7 +91,7 @@ except ImportError:
             )
 
 
-def setup(app: Sphinx):
+def setup(app: Sphinx) -> dict[str, object]:
     """
     Setup following directives:
     * test_results
@@ -115,10 +115,12 @@ def setup(app: Sphinx):
     app.add_config_value("tr_deterministic_case_ids", False, "html")
     # Declarative configuration: the [test_reports] section of this file
     # overrides the tr_* config values above at config-inited. The default is
-    # searched for upwards from the confdir; an explicit value is resolved
-    # against the confdir and must exist. None disables TOML reading entirely
-    # -- which is why NoneType has to be an accepted type here, or Sphinx's own
-    # check_confval_types warns about the documented way to switch it off.
+    # searched for upwards from the confdir to the repository root; an explicit
+    # value is resolved against the confdir and warns if it does not exist (the
+    # build then runs on the conf.py configuration). None disables TOML reading
+    # entirely -- which is why NoneType has to be an accepted type here, or
+    # Sphinx's own check_confval_types warns about the documented way to switch
+    # it off.
     app.add_config_value(
         "tr_config_from_toml",
         DEFAULT_TOML_FILENAME,
@@ -130,7 +132,11 @@ def setup(app: Sphinx):
     log.info("Setting up sphinx-test-reports extension")
 
     # configurations
-    app.add_config_value("tr_rootdir", app.confdir, "html")
+    # The default is Sphinx's confdir, a _StrPath. Without explicit types, a
+    # plain string -- the only thing TOML or a string literal in conf.py can
+    # supply -- fails Sphinx's check_confval_types ("has type 'str', defaults
+    # to '_StrPath'") and takes a -W build down. Every consumer accepts both.
+    app.add_config_value("tr_rootdir", app.confdir, "html", types=(str, os.PathLike))
     app.add_config_value(
         "tr_file",
         ["test-file", "testfile", "Test-File", "TF_", "#ffffff", "node"],
@@ -278,7 +284,10 @@ def load_toml_config(app: Sphinx, config: Config) -> None:
         # sits in docs/, so search upwards -- anchoring at the confdir alone
         # would leave the root file unread by the build while the CLI, started
         # at the root, reads it.
-        path = find_project_config(confdir, setting)
+        # A fruitless search is not a warning -- most projects have no file
+        # -- but it says where it ended (visible with -v), so a misplaced file
+        # does not fail silently.
+        path = find_project_config(confdir, setting, report=log.verbose)
         if path is None:
             return
     else:
