@@ -25,6 +25,10 @@ Unreleased
 * Support: Python 3.10 is no longer supported. It reached the end of upstream
   support, and dropping it lets the package read TOML with ``tomllib`` from the
   standard library instead of carrying a backport.
+* Support: sphinx-needs 6.0 and Sphinx 7.4 are the oldest supported versions.
+  Every sphinx-needs release since 6.0 registers need fields with a schema,
+  which this extension relies on; sphinx-needs 6 itself requires Sphinx 7.4.
+  The compatibility branches for older releases are gone.
 
 .. _`release:1.4.0`:
 

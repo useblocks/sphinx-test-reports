@@ -2,12 +2,10 @@
 import inspect
 import os
 
-import sphinx
-import sphinx_needs
 from docutils.parsers.rst import directives
-from packaging.version import Version
 from sphinx.application import Sphinx
 from sphinx.config import Config
+from sphinx.util import logging
 
 # from docutils import nodes
 from sphinx_needs.api import add_dynamic_function, add_need_type
@@ -30,12 +28,6 @@ from sphinxcontrib.test_reports.directives.test_suite import (
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
 from sphinxcontrib.test_reports.functions import tr_link
-
-sphinx_version = sphinx.__version__
-if Version(sphinx_version) >= Version("1.6"):
-    from sphinx.util import logging
-else:
-    import logging
 
 # fmt: on
 
@@ -269,53 +261,34 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
 
     check_field_name_collisions(config)
 
-    needs_version = Version(sphinx_needs.__version__)
-    use_schema = needs_version >= Version("6.0.0")
-
-    if use_schema:
-        _register_field(
-            app, getattr(config, "tr_file_option", "file"), schema={"type": "string"}
-        )
-        _register_field(
-            app,
-            getattr(config, "tr_source_file_option", "case_file"),
-            schema={"type": "string"},
-        )
-        _register_field(
-            app,
-            getattr(config, "tr_source_line_option", "case_line"),
-            schema={"type": "string"},
-        )
-        _register_field(app, "suite", schema={"type": "string"})
-        _register_field(app, "case", schema={"type": "string"})
-        _register_field(app, "case_name", schema={"type": "string"})
-        _register_field(app, "case_parameter", schema={"type": "string"})
-        _register_field(app, "classname", schema={"type": "string"})
-        _register_field(app, "time", schema={"type": "string"})
-        _register_field(app, "suites", schema={"type": "integer"})
-        _register_field(app, "cases", schema={"type": "integer"})
-        _register_field(app, "passed", schema={"type": "integer"})
-        _register_field(app, "skipped", schema={"type": "integer"})
-        _register_field(app, "failed", schema={"type": "integer"})
-        _register_field(app, "errors", schema={"type": "integer"})
-        _register_field(app, "result", schema={"type": "string"})
-    else:
-        _register_field(app, getattr(config, "tr_file_option", "file"))
-        _register_field(app, getattr(config, "tr_source_file_option", "case_file"))
-        _register_field(app, getattr(config, "tr_source_line_option", "case_line"))
-        _register_field(app, "suite")
-        _register_field(app, "case")
-        _register_field(app, "case_name")
-        _register_field(app, "case_parameter")
-        _register_field(app, "classname")
-        _register_field(app, "time")
-        _register_field(app, "suites")
-        _register_field(app, "cases")
-        _register_field(app, "passed")
-        _register_field(app, "skipped")
-        _register_field(app, "failed")
-        _register_field(app, "errors")
-        _register_field(app, "result")
+    # sphinx-needs >= 6 registers fields with a schema; there is no older
+    # branch to keep, the package requires that version.
+    _register_field(
+        app, getattr(config, "tr_file_option", "file"), schema={"type": "string"}
+    )
+    _register_field(
+        app,
+        getattr(config, "tr_source_file_option", "case_file"),
+        schema={"type": "string"},
+    )
+    _register_field(
+        app,
+        getattr(config, "tr_source_line_option", "case_line"),
+        schema={"type": "string"},
+    )
+    _register_field(app, "suite", schema={"type": "string"})
+    _register_field(app, "case", schema={"type": "string"})
+    _register_field(app, "case_name", schema={"type": "string"})
+    _register_field(app, "case_parameter", schema={"type": "string"})
+    _register_field(app, "classname", schema={"type": "string"})
+    _register_field(app, "time", schema={"type": "string"})
+    _register_field(app, "suites", schema={"type": "integer"})
+    _register_field(app, "cases", schema={"type": "integer"})
+    _register_field(app, "passed", schema={"type": "integer"})
+    _register_field(app, "skipped", schema={"type": "integer"})
+    _register_field(app, "failed", schema={"type": "integer"})
+    _register_field(app, "errors", schema={"type": "integer"})
+    _register_field(app, "result", schema={"type": "string"})
     # Extra dynamic functions
     # For details about usage read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_dynamic_function
@@ -325,10 +298,7 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
     # extracted from JUnit XML are accepted by sphinx-needs
     tr_extra_options = getattr(config, "tr_extra_options", [])
     for option_name in tr_extra_options:
-        if use_schema:
-            _register_field(app, option_name, schema={"type": "string"})
-        else:
-            _register_field(app, option_name)
+        _register_field(app, option_name, schema={"type": "string"})
 
     # Extra need types
     # For details about usage read
