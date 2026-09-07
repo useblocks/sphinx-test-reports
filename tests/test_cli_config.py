@@ -1,4 +1,4 @@
-"""The convert CLI reads ``[test_reports.convert]`` from ``ubproject.toml``.
+"""``build needs`` reads ``[test_reports.build.needs]`` from ``ubproject.toml``.
 
 Precedence is flag > TOML table > built-in default, and the file is found the
 way the Sphinx build finds it -- searched for upwards to the project root -- so
@@ -28,7 +28,7 @@ def _write(directory, toml_source, name=DEFAULT_TOML_FILENAME):
 
 
 def run_convert(tmp_path, arguments, toml=None, config_name=None, subdir=None):
-    """Run ``convert`` from *tmp_path* (or a subdirectory) and parse the output.
+    """Run ``build needs`` from *tmp_path* (or a subdirectory) and parse the output.
 
     A project-root marker bounds the upward search, so the outcome never depends
     on what happens to sit above the temporary directory.
@@ -65,7 +65,7 @@ class TestPrecedence:
             tmp_path,
             [],
             toml="""
-            [test_reports.convert]
+            [test_reports.build.needs]
             project = "My Project"
             version = "2.0"
             tags = ["ci", "unit"]
@@ -83,7 +83,7 @@ class TestPrecedence:
         code, payload = run_convert(
             tmp_path,
             ["--version", "9.9"],
-            toml="[test_reports.convert]\nversion = '2.0'\n",
+            toml="[test_reports.build.needs]\nversion = '2.0'\n",
         )
         assert code == 0
         assert payload["current_version"] == "9.9"
@@ -94,7 +94,7 @@ class TestPrecedence:
         code, payload = run_convert(
             tmp_path,
             [],
-            toml="[test_reports.convert]\nneed_type = 'check'\n"
+            toml="[test_reports.build.needs]\nneed_type = 'check'\n"
             """
             [test_reports.case]
             directive = "test-case"
@@ -117,7 +117,7 @@ class TestPrecedence:
     def test_an_explicit_empty_flag_beats_the_table(self, tmp_path):
         # "" is a value, not "not given": the flag clears the file's tags.
         code, payload = run_convert(
-            tmp_path, ["--tags", ""], toml="[test_reports.convert]\ntags = ['x']\n"
+            tmp_path, ["--tags", ""], toml="[test_reports.build.needs]\ntags = ['x']\n"
         )
         assert code == 0
         assert _first_need(payload)["tags"] == []
@@ -126,7 +126,7 @@ class TestPrecedence:
         code, payload = run_convert(
             tmp_path,
             ["--link-property", "Verifies=verifies"],
-            toml='[test_reports.convert]\nlink_properties = { Other = "other_field" }\n',
+            toml='[test_reports.build.needs]\nlink_properties = { Other = "other_field" }\n',
         )
         assert code == 0
         need = _first_need(payload)
@@ -147,7 +147,7 @@ class TestPrecedence:
             source_line_option = "line"
             extra_options = ["more_info"]
 
-            [test_reports.convert]
+            [test_reports.build.needs]
             project = "p"
             """,
         )
@@ -169,7 +169,7 @@ class TestFileLookup:
         code, payload = run_convert(
             tmp_path,
             [],
-            toml='[test_reports.convert]\nproject = "from the root"\n',
+            toml='[test_reports.build.needs]\nproject = "from the root"\n',
             subdir="build/testlogs",
         )
         assert code == 0
@@ -179,7 +179,7 @@ class TestFileLookup:
         code, payload = run_convert(
             tmp_path,
             ["--config", "staging.toml"],
-            toml='[test_reports.convert]\nproject = "staged"\n',
+            toml='[test_reports.build.needs]\nproject = "staged"\n',
             config_name="staging.toml",
         )
         assert code == 0
@@ -194,7 +194,7 @@ class TestFileLookup:
         code, payload = run_convert(
             tmp_path,
             ["--no-config"],
-            toml='[test_reports.convert]\nproject = "from toml"\n',
+            toml='[test_reports.build.needs]\nproject = "from toml"\n',
         )
         assert code == 0
         assert payload["project"] == ""
@@ -239,7 +239,7 @@ class TestVerbosity:
 
     def test_verbose_names_the_file_used(self, tmp_path, capsys):
         code, _ = run_convert(
-            tmp_path, ["--verbose"], toml='[test_reports.convert]\nproject = "p"\n'
+            tmp_path, ["--verbose"], toml='[test_reports.build.needs]\nproject = "p"\n'
         )
         assert code == 0
         err = capsys.readouterr().err
@@ -252,10 +252,10 @@ class TestDiagnostics:
 
     def test_wrong_type_in_the_table_is_an_error(self, tmp_path, capsys):
         code, _ = run_convert(
-            tmp_path, [], toml="[test_reports.convert]\ntags = 'ci'\n"
+            tmp_path, [], toml="[test_reports.build.needs]\ntags = 'ci'\n"
         )
         assert code == 2
-        assert "convert.tags" in capsys.readouterr().err
+        assert "build.needs.tags" in capsys.readouterr().err
 
     def test_wrong_type_elsewhere_in_the_section_is_an_error_too(
         self, tmp_path, capsys
@@ -272,13 +272,13 @@ class TestDiagnostics:
         code, payload = run_convert(
             tmp_path,
             [],
-            toml='[test_reports.convert]\nproject = "p"\nno_such_key = 1\n',
+            toml='[test_reports.build.needs]\nproject = "p"\nno_such_key = 1\n',
         )
         assert code == 0
         assert payload["project"] == "p"
         err = capsys.readouterr().err
         assert "no_such_key" in err
-        assert "[test_reports.convert]" in err
+        assert "[test_reports.build.needs]" in err
 
     def test_half_remote_pair_from_the_table_names_the_table(self, tmp_path, capsys):
         # The value came from the file, so naming only the flags would point at
@@ -286,12 +286,12 @@ class TestDiagnostics:
         code, _ = run_convert(
             tmp_path,
             [],
-            toml='[test_reports.convert]\nremote_url = "https://gh.com/o/r"\n',
+            toml='[test_reports.build.needs]\nremote_url = "https://gh.com/o/r"\n',
         )
         assert code == 2
         message = capsys.readouterr().err
         assert "remote_url and --commit" in message
-        assert "[test_reports.convert]" in message
+        assert "[test_reports.build.needs]" in message
         assert DEFAULT_TOML_FILENAME in message
 
     def test_half_remote_pair_from_flags_names_the_flags(self, tmp_path, capsys):
@@ -299,7 +299,7 @@ class TestDiagnostics:
         assert code == 2
         message = capsys.readouterr().err
         assert "--remote-url and --commit" in message
-        assert "[test_reports.convert]" not in message
+        assert "[test_reports.build.needs]" not in message
 
     def test_need_type_disagreeing_with_the_case_type_is_an_error(
         self, tmp_path, capsys
@@ -310,7 +310,7 @@ class TestDiagnostics:
             tmp_path,
             [],
             toml="""
-            [test_reports.convert]
+            [test_reports.build.needs]
             need_type = "testcase"
 
             [test_reports.case]
@@ -329,7 +329,7 @@ class TestDiagnostics:
         code, _ = run_convert(
             tmp_path,
             [],
-            toml='[test_reports.convert]\nlink_properties = { Verifies = ["v"] }\n',
+            toml='[test_reports.build.needs]\nlink_properties = { Verifies = ["v"] }\n',
         )
         assert code == 2
         assert "link_properties" in capsys.readouterr().err

@@ -32,7 +32,7 @@ Unreleased
 * Feature: New ``test-reports build needs`` command line interface, converting
   test-result XML into a ``needs.json`` without running Sphinx, so the
   conversion can run as a cacheable build action and the documentation build
-  only imports the result. Its settings come from the ``[test_reports.convert]``
+  only imports the result. Its settings come from the ``[test_reports.build.needs]``
   table of ``ubproject.toml``, with flags for per-invocation overrides. See
   :ref:`cli`.
 * Support: Python 3.10 is no longer supported. It reached the end of upstream

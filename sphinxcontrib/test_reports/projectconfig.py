@@ -17,7 +17,7 @@ Keys fall into two groups:
   (:data:`FIELD_NAME_KEYS`) and ``extra_options``, so the needs it writes have
   the shape of the needs the build creates and carry exactly the fields the
   build accepts;
-* the ``[test_reports.convert]`` sub-table (:data:`CONVERSION_KEYS`): how test
+* the ``[test_reports.build.needs]`` sub-table (:data:`CONVERSION_KEYS`): how test
   reports are turned into a ``needs.json``. The Sphinx bridge never applies it
   to a ``tr_*`` value, but the build validates it like every other key, so a
   typo is caught by whichever consumer reads the file first.
@@ -109,13 +109,21 @@ PATH_KEYS = ("rootdir", "report_template")
 #: list form. ``None`` in :data:`_KEY_TYPES` marks exactly these.
 _DUAL_SPELLING_KEYS = ("file", "suite", "case")
 
-#: The sub-table read by the ``test-reports build needs`` command. It is not a
-#: bridge key: the build never maps it onto a ``tr_*`` value. It is validated
-#: like everything else, so that the build rejects the same typos the converter
-#: would -- one file, one verdict.
-CONVERT_TABLE = "convert"
+#: The sub-table holding what the ``test-reports build`` command line
+#: produces, one table per artifact and named after it, as ubCode spells
+#: ``ubc build needs``. Not a bridge key: the build never maps any of it onto
+#: a ``tr_*`` value. It is validated like everything else, so that the build
+#: rejects the same typos the command line would -- one file, one verdict.
+BUILD_TABLE = "build"
 
-#: Keys of ``[test_reports.convert]``, in the order the converter documents
+#: The artifact ``test-reports build needs`` produces, and its table under
+#: :data:`BUILD_TABLE`.
+NEEDS_TABLE = "needs"
+
+#: How the table is spelled in diagnostics.
+NEEDS_TABLE_PATH = f"{SECTION}.{BUILD_TABLE}.{NEEDS_TABLE}"
+
+#: Keys of ``[test_reports.build.needs]``, in the order the command documents
 #: them. The CLI's flag merge iterates this, so a key cannot be added here
 #: without the CLI being taught a default for it.
 CONVERSION_KEYS = (
@@ -147,8 +155,8 @@ DEFAULT_FIELD_NAMES: dict[str, str] = {
 #: ``case`` entry. Both defaults live here so they cannot drift apart.
 DEFAULT_NEED_TYPE = "testcase"
 
-#: Expected Python type per ``[test_reports.convert]`` key.
-_CONVERT_KEY_TYPES: dict[str, type[object]] = {
+#: Expected Python type per ``[test_reports.build.needs]`` key.
+_NEEDS_KEY_TYPES: dict[str, type[object]] = {
     "project": str,
     "version": str,
     "need_type": str,
@@ -179,7 +187,7 @@ _KEY_TYPES: dict[str, type[object] | None] = {
     "property_link_types": dict,
     "json_mapping": dict,
     "deterministic_case_ids": bool,
-    "convert": dict,
+    "build": dict,
 }
 
 #: Required type of the *values* inside a table-valued key. Without this a
@@ -376,8 +384,8 @@ def _normalise_section(
             _wrong_type(key, value, expected, path)
         if expected is not None and not isinstance(value, expected):
             _wrong_type(key, value, expected, path)
-        if key == CONVERT_TABLE:
-            normalised[key] = _normalise_convert_table(value, path, warn)
+        if key == BUILD_TABLE:
+            normalised[key] = _normalise_build_table(value, path, warn)
         elif key in _DUAL_SPELLING_KEYS:
             normalised[key] = _normalise_type_entry(key, value, path)
         else:
@@ -427,10 +435,38 @@ def _check_field_name_collisions(section: Mapping[str, object], path: Path) -> N
         seen[name] = key
 
 
-def _normalise_convert_table(
+def _normalise_build_table(
     value: object, path: Path, warn: Callable[[str], None] | None
 ) -> dict[str, object]:
-    """Validate ``[test_reports.convert]`` under the section's own policy.
+    """Validate ``[test_reports.build]``: one known sub-table per artifact.
+
+    Only ``needs`` is modelled today. An unknown sub-table is reported and
+    dropped like an unknown key anywhere else -- the command line may grow
+    artifacts this version does not know, and a file naming one must not take
+    a build down.
+    """
+    if not isinstance(value, Mapping):
+        return {}
+    table: dict[str, object] = {str(name): item for name, item in value.items()}
+    unknown = sorted(set(table) - {NEEDS_TABLE})
+    if unknown and warn is not None:
+        warn(
+            f"{path}: ignoring unknown key(s) in [{SECTION}.{BUILD_TABLE}]: "
+            f"{', '.join(unknown)}. Supported keys: {NEEDS_TABLE}"
+        )
+    normalised: dict[str, object] = {}
+    if NEEDS_TABLE in table:
+        artifact = table[NEEDS_TABLE]
+        if not isinstance(artifact, dict):
+            _wrong_type(f"{BUILD_TABLE}.{NEEDS_TABLE}", artifact, dict, path)
+        normalised[NEEDS_TABLE] = _normalise_needs_table(artifact, path, warn)
+    return normalised
+
+
+def _normalise_needs_table(
+    value: object, path: Path, warn: Callable[[str], None] | None
+) -> dict[str, object]:
+    """Validate ``[test_reports.build.needs]`` under the section's own policy.
 
     Same rules as the section: a known key with the wrong type is fatal, an
     unknown key is reported and dropped, table values are checked. The caller
@@ -439,10 +475,10 @@ def _normalise_convert_table(
     if not isinstance(value, Mapping):
         return {}
     table: dict[str, object] = {str(name): item for name, item in value.items()}
-    unknown = sorted(set(table) - set(_CONVERT_KEY_TYPES))
+    unknown = sorted(set(table) - set(_NEEDS_KEY_TYPES))
     if unknown and warn is not None:
         warn(
-            f"{path}: ignoring unknown key(s) in [{SECTION}.{CONVERT_TABLE}]: "
+            f"{path}: ignoring unknown key(s) in [{NEEDS_TABLE_PATH}]: "
             f"{', '.join(unknown)}. Supported keys: "
             f"{', '.join(CONVERSION_KEYS)}"
         )
@@ -450,8 +486,8 @@ def _normalise_convert_table(
     for key, item in table.items():
         if key in unknown:
             continue
-        label = f"{CONVERT_TABLE}.{key}"
-        expected = _CONVERT_KEY_TYPES[key]
+        label = f"{BUILD_TABLE}.{NEEDS_TABLE}.{key}"
+        expected = _NEEDS_KEY_TYPES[key]
         if not isinstance(item, expected):
             _wrong_type(label, item, expected, path)
         if expected is list:
@@ -476,15 +512,28 @@ def _check_link_properties(value: object, path: Path) -> None:
     for name, field in value.items():
         if not str(name).strip() or not (isinstance(field, str) and field.strip()):
             msg = (
-                f"{path}: [{SECTION}.{CONVERT_TABLE}] link_properties expects "
+                f"{path}: [{NEEDS_TABLE_PATH}] link_properties expects "
                 f'PROPERTY = "LINK_FIELD" with both names non-empty, got '
                 f"{name!r} = {field!r}"
             )
             raise TomlConfigError(msg)
 
 
+def needs_settings(section: Mapping[str, object]) -> Mapping[str, object] | None:
+    """The ``[test_reports.build.needs]`` table, or ``None`` when unset.
+
+    The one place that knows how the table is nested, so a consumer never
+    spells the path itself.
+    """
+    build = section.get(BUILD_TABLE)
+    if not isinstance(build, Mapping):
+        return None
+    needs = build.get(NEEDS_TABLE)
+    return needs if isinstance(needs, Mapping) else None
+
+
 def _check_need_type_agreement(section: Mapping[str, object], path: Path) -> None:
-    """``convert.need_type`` and ``case``'s type name the same need type.
+    """``build.needs.need_type`` and ``case``'s type name the same need type.
 
     They are separate keys with separate consumers -- the converter derives the
     need type and the deterministic-ID prefix from ``need_type``, the Sphinx
@@ -494,22 +543,21 @@ def _check_need_type_agreement(section: Mapping[str, object], path: Path) -> Non
     build neither registers nor cross-links.
 
     A side that is not set is compared at its default, not skipped: a
-    customised ``case`` next to a ``convert`` table without ``need_type`` is a
-    disagreement too. The check only applies when the ``convert`` table exists
-    -- a project that only builds and never converts may name its case type
-    freely.
+    customised ``case`` next to a ``build.needs`` table without ``need_type``
+    is a disagreement too. The check only applies when that table exists -- a
+    project that only builds documentation may name its case type freely.
     """
-    convert = section.get(CONVERT_TABLE)
-    if not isinstance(convert, Mapping):
+    needs = needs_settings(section)
+    if needs is None:
         return
-    need_type: object = convert.get("need_type", DEFAULT_NEED_TYPE)
+    need_type: object = needs.get("need_type", DEFAULT_NEED_TYPE)
     case_type = case_need_type(section) or DEFAULT_NEED_TYPE
     if case_type != need_type:
         msg = (
-            f"{path}: [{SECTION}.{CONVERT_TABLE}] need_type is {need_type!r} but "
+            f"{path}: [{NEEDS_TABLE_PATH}] need_type is {need_type!r} but "
             f"[{SECTION}] case's type is {case_type!r} (each defaulting to "
             f"{DEFAULT_NEED_TYPE!r} when not set). Both name the need type of a "
-            f"test case -- need_type for the converter, case for the Sphinx "
+            f"test case -- need_type for `build needs`, case for the Sphinx "
             f"build -- so they must agree, or the produced needs.json and the "
             f"build describe different need types."
         )

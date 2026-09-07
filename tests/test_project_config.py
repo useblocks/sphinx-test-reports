@@ -18,7 +18,7 @@ import pytest
 from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
 from sphinxcontrib.test_reports.projectconfig import (
     BRIDGE_KEYS,
-    CONVERT_TABLE,
+    BUILD_TABLE,
     DEFAULT_FIELD_NAMES,
     DEFAULT_TOML_FILENAME,
     SECTION,
@@ -26,6 +26,7 @@ from sphinxcontrib.test_reports.projectconfig import (
     field_names,
     find_project_config,
     load_project_config,
+    needs_settings,
 )
 
 
@@ -68,16 +69,17 @@ class TestLoader:
         assert config["extra_options"] == ["more_info"]
         assert config["property_link_types"] == {"request": "req"}
 
-    def test_convert_table_is_validated_but_never_bridged(self, tmp_path):
-        # [test_reports.convert] belongs to the converter. The build validates
-        # it -- one file, one verdict -- but must not map it onto a tr_* value.
+    def test_build_needs_table_is_validated_but_never_bridged(self, tmp_path):
+        # [test_reports.build.needs] belongs to the command line. The build
+        # validates it -- one file, one verdict -- but must not map it onto a
+        # tr_* value.
         _write(
             tmp_path,
             """
             [test_reports]
             file_option = "report_file"
 
-            [test_reports.convert]
+            [test_reports.build.needs]
             project = "demo"
             tags = ["ci"]
             """,
@@ -85,8 +87,8 @@ class TestLoader:
         reported = []
         section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME, reported.append)
         assert reported == []
-        assert section[CONVERT_TABLE] == {"project": "demo", "tags": ["ci"]}
-        assert CONVERT_TABLE not in BRIDGE_KEYS
+        assert needs_settings(section) == {"project": "demo", "tags": ["ci"]}
+        assert BUILD_TABLE not in BRIDGE_KEYS
 
     @pytest.mark.parametrize(
         ("key", "value"),
@@ -98,28 +100,55 @@ class TestLoader:
             ("link_properties", '{ Verifies = ["verifies"] }'),  # values too
         ],
     )
-    def test_convert_wrong_types_are_rejected(self, tmp_path, key, value):
-        _write(tmp_path, f"[test_reports.convert]\n{key} = {value}\n")
-        with pytest.raises(TomlConfigError, match=f"convert.{key}"):
+    def test_build_needs_wrong_types_are_rejected(self, tmp_path, key, value):
+        _write(tmp_path, f"[test_reports.build.needs]\n{key} = {value}\n")
+        with pytest.raises(TomlConfigError, match=f"build.needs.{key}"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
 
-    def test_convert_unknown_key_is_reported_but_not_fatal(self, tmp_path):
-        _write(tmp_path, "[test_reports.convert]\nprojct = 'typo'\nproject = 'p'\n")
+    def test_unknown_artifact_under_build_is_reported_but_not_fatal(self, tmp_path):
+        # `build` holds one table per artifact the command line produces. A
+        # newer command may produce one this version does not know, and a file
+        # naming it must not take the build down.
+        _write(
+            tmp_path,
+            """
+            [test_reports.build.needs]
+            project = "p"
+
+            [test_reports.build.graph]
+            format = "svg"
+            """,
+        )
         reported = []
         section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME, reported.append)
-        assert section[CONVERT_TABLE] == {"project": "p"}
+        assert needs_settings(section) == {"project": "p"}
+        assert section[BUILD_TABLE] == {"needs": {"project": "p"}}
+        assert len(reported) == 1
+        assert "graph" in reported[0]
+        assert "[test_reports.build]" in reported[0]
+
+    def test_a_non_table_needs_artifact_is_rejected(self, tmp_path):
+        _write(tmp_path, '[test_reports.build]\nneeds = "yes"\n')
+        with pytest.raises(TomlConfigError, match="build.needs"):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+
+    def test_build_needs_unknown_key_is_reported_but_not_fatal(self, tmp_path):
+        _write(tmp_path, "[test_reports.build.needs]\nprojct = 'typo'\nproject = 'p'\n")
+        reported = []
+        section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME, reported.append)
+        assert needs_settings(section) == {"project": "p"}
         assert len(reported) == 1
         assert "projct" in reported[0]
-        assert "[test_reports.convert]" in reported[0]
+        assert "[test_reports.build.needs]" in reported[0]
 
     def test_need_type_and_case_type_must_agree(self, tmp_path):
         # The converter takes the need type (and the deterministic-ID prefix)
-        # from convert.need_type, the build from case's type. Disagreeing
+        # from build.needs.need_type, the build from case's type. Disagreeing
         # produces a needs.json the build neither registers nor cross-links.
         _write(
             tmp_path,
             """
-            [test_reports.convert]
+            [test_reports.build.needs]
             need_type = "testcase"
 
             [test_reports.case]
@@ -140,7 +169,7 @@ class TestLoader:
         _write(
             tmp_path,
             """
-            [test_reports.convert]
+            [test_reports.build.needs]
             project = "p"
 
             [test_reports.case]
@@ -155,7 +184,7 @@ class TestLoader:
         with pytest.raises(TomlConfigError, match="'testcase'.*'check'"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
         # ... and the mirror: need_type set, case left at its default.
-        _write(tmp_path, '[test_reports.convert]\nneed_type = "check"\n')
+        _write(tmp_path, '[test_reports.build.needs]\nneed_type = "check"\n')
         with pytest.raises(TomlConfigError, match="'check'.*'testcase'"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
 
@@ -181,7 +210,8 @@ class TestLoader:
         # One verdict for both consumers: the build refuses what the converter
         # would refuse.
         _write(
-            tmp_path, '[test_reports.convert]\nlink_properties = { Verifies = "" }\n'
+            tmp_path,
+            '[test_reports.build.needs]\nlink_properties = { Verifies = "" }\n',
         )
         with pytest.raises(TomlConfigError, match="link_properties"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
@@ -204,7 +234,7 @@ class TestLoader:
         _write(
             tmp_path,
             """
-            [test_reports.convert]
+            [test_reports.build.needs]
             need_type = "check"
 
             [test_reports.case]
@@ -217,7 +247,7 @@ class TestLoader:
             """,
         )
         section = load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
-        assert section["case"][1] == section[CONVERT_TABLE]["need_type"] == "check"
+        assert section["case"][1] == needs_settings(section)["need_type"] == "check"
 
     def test_unknown_key_is_reported_but_not_fatal(self, tmp_path):
         # ubproject.toml is shared with tools on independent release cadences,
@@ -719,10 +749,10 @@ class TestBridgePrecedence:
         assert "no_such_key" in warnings
         assert app.config.tr_file_option == "ok"
 
-    def test_convert_table_is_not_applied_to_the_build(self, tmp_path):
+    def test_build_needs_table_is_not_applied_to_the_build(self, tmp_path):
         docs = _basic_doc(
             tmp_path,
-            "[test_reports]\nfile_option = 'ok'\n\n[test_reports.convert]\nproject = 'p'\n",
+            "[test_reports]\nfile_option = 'ok'\n\n[test_reports.build.needs]\nproject = 'p'\n",
         )
         app, warnings = _build(docs)
         # Only this table's fate is under test; other builds in the process may

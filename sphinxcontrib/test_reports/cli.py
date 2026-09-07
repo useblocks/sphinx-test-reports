@@ -6,7 +6,7 @@ result. Nothing in the import chain of this module may import Sphinx; the test
 suite asserts that.
 
 The conversion settings come from three places, highest precedence first: a
-command-line flag, the ``[test_reports.convert]`` table of the project's
+command-line flag, the ``[test_reports.build.needs]`` table of the project's
 ``ubproject.toml``, the built-in default. The file is the declarative
 description of the project that the Sphinx build reads too, so the two
 consumers cannot drift apart; the flags stay for per-invocation values such as
@@ -27,14 +27,15 @@ from sphinxcontrib.test_reports.needs_export import (
 )
 from sphinxcontrib.test_reports.projectconfig import (
     CONVERSION_KEYS,
-    CONVERT_TABLE,
     DEFAULT_TOML_FILENAME,
+    NEEDS_TABLE_PATH,
     SECTION,
     TomlConfigError,
     case_need_type,
     field_names,
     find_project_config,
     load_project_config,
+    needs_settings,
 )
 from sphinxcontrib.test_reports.remote import (
     DEFAULT_URL_PATTERN,
@@ -43,7 +44,7 @@ from sphinxcontrib.test_reports.remote import (
 )
 
 #: How the table is spelled in help texts and diagnostics.
-TABLE = f"[{SECTION}.{CONVERT_TABLE}]"
+TABLE = f"[{NEEDS_TABLE_PATH}]"
 
 
 def _warn(message: str) -> None:
@@ -65,7 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Build an artifact from one or more test-result XML files.",
     )
     artifacts = build.add_subparsers(dest="artifact", required=True)
-    convert = artifacts.add_parser(
+    needs = artifacts.add_parser(
         "needs",
         help="Build a needs.json from one or more test-result XML files.",
         description=(
@@ -75,13 +76,13 @@ def _build_parser() -> argparse.ArgumentParser:
             "overrides the file's value for that key."
         ),
     )
-    convert.add_argument(
+    needs.add_argument(
         "files",
         nargs="+",
         metavar="FILE",
         help="Test-result XML files (a build system passes these as a file list).",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--output",
         "-o",
         required=True,
@@ -92,27 +93,27 @@ def _build_parser() -> argparse.ArgumentParser:
     # resolved in _resolve_settings: a given flag beats the file, which beats
     # the built-in default. None is safe because each key resolves to a
     # concrete value there.
-    convert.add_argument(
+    needs.add_argument(
         "--project",
         default=None,
         help="Project name recorded in the needs.json envelope (default: empty).",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--version",
         default=None,
         help=f"Version key in the envelope (default: {DEFAULT_VERSION}).",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--need-type",
         default=None,
         help="Need type for each test case (default: testcase).",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--tags",
         default=None,
         help="Comma-separated tags applied to every created need.",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--link-property",
         action="append",
         default=None,
@@ -123,7 +124,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "all, it replaces the file's link_properties table."
         ),
     )
-    convert.add_argument(
+    needs.add_argument(
         "--extra-option",
         action="append",
         default=None,
@@ -135,22 +136,22 @@ def _build_parser() -> argparse.ArgumentParser:
             "and left out."
         ),
     )
-    convert.add_argument(
+    needs.add_argument(
         "--remote-url",
         default=None,
         help="Repository URL used to synthesize source links; git remotes are accepted.",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--commit",
         default=None,
         help="Commit-ish the reports were produced from.",
     )
-    convert.add_argument(
+    needs.add_argument(
         "--url-pattern",
         default=None,
         help=f"Source-URL template (default: {DEFAULT_URL_PATTERN}).",
     )
-    convert.add_argument(
+    needs.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -160,7 +161,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "and should stay quiet, but a misplaced one must be diagnosable."
         ),
     )
-    config_source = convert.add_mutually_exclusive_group()
+    config_source = needs.add_mutually_exclusive_group()
     config_source.add_argument(
         "--config",
         default=None,
@@ -299,7 +300,7 @@ _DEFAULTS: "dict[str, object]" = {
     "url_pattern": DEFAULT_URL_PATTERN,
 }
 if set(_DEFAULTS) != set(CONVERSION_KEYS):  # pragma: no cover - import-time guard
-    raise RuntimeError("every [test_reports.convert] key needs a built-in default")
+    raise RuntimeError("every [test_reports.build.needs] key needs a built-in default")
 
 #: argparse destination per conversion key, where it differs from the key.
 #: Only the repeatable ``--link-property`` flag does.
@@ -383,12 +384,11 @@ def _build_needs(arguments: argparse.Namespace) -> int:
         print(error, file=sys.stderr)
         return 2
 
-    table = section.get(CONVERT_TABLE, {})
     settings, sources = _resolve_settings(
-        arguments, table if isinstance(table, dict) else {}
+        arguments, dict(needs_settings(section) or {})
     )
 
-    # The loader already rejects a file whose convert.need_type disagrees with
+    # The loader already rejects a file whose build.needs.need_type disagrees with
     # case's type. A --need-type flag (or the default) is not in the file, so
     # the merged value has to be checked here as well, or the converter writes
     # needs of a type the build does not register.

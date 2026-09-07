@@ -456,7 +456,7 @@ catch. An *unknown* key is reported as a warning and ignored: the file is
 shared with tools on independent release cadences, so a key this version does
 not model must not take your build down.
 
-The ``[test_reports.convert]`` sub-table holds the settings of the
+The ``[test_reports.build.needs]`` sub-table holds the settings of the
 :ref:`build needs command <cli-declarative>`. The build validates it along with
 the rest of the section -- so a typo is caught whichever consumer reads the file
 first -- but never applies it to a ``tr_*`` value. One rule spans both:

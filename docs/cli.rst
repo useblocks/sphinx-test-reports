@@ -99,7 +99,7 @@ can require them. A test run that names its link properties
 
 .. code-block:: toml
 
-   [test_reports.convert]
+   [test_reports.build.needs]
    link_properties = { PartiallyVerifies = "partially_verifies", FullyVerifies = "fully_verifies" }
 
 and lists ``TestType`` and ``DerivationTechnique`` in ``extra_options``.
@@ -145,7 +145,7 @@ Declarative configuration
 -------------------------
 
 None of the settings above has to be spelled as a flag. The command reads the
-``[test_reports.convert]`` table of ``ubproject.toml`` -- the same declarative
+``[test_reports.build.needs]`` table of ``ubproject.toml`` -- the same declarative
 file the documentation build reads (see :ref:`tr_config_from_toml`), so the two
 consumers of a project never work from different descriptions of it. By default
 the file is searched for in the working directory and its parents, stopping at
@@ -154,7 +154,7 @@ default file is not an error.
 
 .. code-block:: toml
 
-   [test_reports.convert]
+   [test_reports.build.needs]
    project = "My Project"
    version = "2.0"
    need_type = "testcase"
@@ -225,5 +225,5 @@ All options
 ``--project`` and ``--version`` fill the ``needs.json`` envelope;
 ``--need-type`` (default ``testcase``) sets the need type and the ID prefix;
 ``--tags`` is a comma-separated list applied to every created need. Every one
-of these can also come from ``[test_reports.convert]`` in ``ubproject.toml``;
+of these can also come from ``[test_reports.build.needs]`` in ``ubproject.toml``;
 a flag wins.

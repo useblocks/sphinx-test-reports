@@ -116,8 +116,7 @@ def setup(app: Sphinx) -> dict[str, object]:
     # hashing (type, title, content) -- the latter moves the ID when a test
     # starts failing differently. Off by default: enabling it changes IDs.
     # Required (not just recommended) when the build consumes a needs.json
-    # produced by `test-reports build needs`, which always writes
-    # deterministic IDs.
+    # produced by `test-reports build needs`, which always writes them.
     app.add_config_value("tr_deterministic_case_ids", False, "html")
     # Declarative configuration: the [test_reports] section of this file
     # overrides the tr_* config values above at config-inited. The default is
