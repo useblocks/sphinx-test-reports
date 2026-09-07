@@ -20,14 +20,14 @@ Converting a report
 
 .. code-block:: bash
 
-   test-reports convert bazel-testlogs/my_target/test.xml --output needs.json
+   test-reports build needs bazel-testlogs/my_target/test.xml --output needs.json
 
 Several reports can be converted into one file -- a build system typically
 passes them as a file list:
 
 .. code-block:: bash
 
-   test-reports convert report_a.xml report_b.xml --output needs.json
+   test-reports build needs report_a.xml report_b.xml --output needs.json
 
 Every test case must be unique across the given reports. A case's ID is derived
 from where the test is, so the same case twice -- typically the same report
@@ -89,7 +89,7 @@ into a link field instead, map it -- the value is split on commas:
 
 .. code-block:: bash
 
-   test-reports convert test.xml --output needs.json \
+   test-reports build needs test.xml --output needs.json \
        --link-property PartiallyVerifies=partially_verifies \
        --link-property FullyVerifies=fully_verifies
 
@@ -109,7 +109,7 @@ because half the metadata cannot produce a URL:
 
 .. code-block:: bash
 
-   test-reports convert test.xml --output needs.json \
+   test-reports build needs test.xml --output needs.json \
        --remote-url git@github.com:org/repo.git \
        --commit "$(git rev-parse HEAD)"
 
@@ -123,7 +123,7 @@ which accepts the placeholders ``{base}``, ``{commit}``, ``{file}`` and
 
 .. code-block:: bash
 
-   test-reports convert test.xml --output needs.json \
+   test-reports build needs test.xml --output needs.json \
        --remote-url https://gitlab.com/org/repo --commit abc123 \
        --url-pattern "{base}/-/blob/{commit}/{file}#L{line}"
 
@@ -157,7 +157,7 @@ default file is not an error.
 
 .. code-block:: bash
 
-   test-reports convert bazel-testlogs/my_target/test.xml --output needs.json \
+   test-reports build needs bazel-testlogs/my_target/test.xml --output needs.json \
        --commit "$(git rev-parse HEAD)"
 
 **Precedence** is flag > table > built-in default. A flag given alongside the
@@ -201,8 +201,8 @@ All options
 
 .. code-block:: text
 
-   test-reports convert FILE [FILE ...] --output PATH
-                        [--config PATH | --no-config]
+   test-reports build needs FILE [FILE ...] --output PATH
+                            [--config PATH | --no-config]
                         [--project NAME] [--version KEY]
                         [--need-type TYPE] [--tags TAGS]
                         [--extra-option NAME] [--link-property PROPERTY=LINK_FIELD]

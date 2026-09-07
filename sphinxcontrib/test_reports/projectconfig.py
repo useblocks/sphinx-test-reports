@@ -6,7 +6,7 @@ sphinx-codelinks, sphinx-mounts, ubCode) -- so that a project is described once
 instead of being restated in every tool that acts on it.
 
 **Nothing in this module may import Sphinx.** The section describes the project,
-not this extension, and the ``test-reports convert`` command reads it as a
+not this extension, and the ``test-reports build needs`` command reads it as a
 build action without the documentation toolchain installed.
 
 Keys fall into two groups:
@@ -109,7 +109,7 @@ PATH_KEYS = ("rootdir", "report_template")
 #: list form. ``None`` in :data:`_KEY_TYPES` marks exactly these.
 _DUAL_SPELLING_KEYS = ("file", "suite", "case")
 
-#: The sub-table read by the ``test-reports convert`` command. It is not a
+#: The sub-table read by the ``test-reports build needs`` command. It is not a
 #: bridge key: the build never maps it onto a ``tr_*`` value. It is validated
 #: like everything else, so that the build rejects the same typos the converter
 #: would -- one file, one verdict.

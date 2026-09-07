@@ -29,7 +29,7 @@ Unreleased
   root;
   the new ``tr_config_from_toml`` names or disables it. Precedence is ``-D`` >
   ``ubproject.toml`` > ``conf.py`` > default. See :ref:`tr_config_from_toml`.
-* Feature: New ``test-reports convert`` command line interface, converting
+* Feature: New ``test-reports build needs`` command line interface, converting
   test-result XML into a ``needs.json`` without running Sphinx, so the
   conversion can run as a cacheable build action and the documentation build
   only imports the result. Its settings come from the ``[test_reports.convert]``

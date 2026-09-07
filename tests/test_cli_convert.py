@@ -1,4 +1,4 @@
-"""Tests for the Sphinx-free ``test-reports convert`` CLI (TR-A).
+"""Tests for the Sphinx-free ``test-reports build needs`` CLI (TR-A).
 
 This is the keystone of the build-system story: a test-XML to needs.json
 conversion that runs as a build action *outside* Sphinx, so the docs build only
@@ -28,7 +28,7 @@ def _convert(tmp_path, *args, xml=GTEST_XML):
     from sphinxcontrib.test_reports.cli import main
 
     output = tmp_path / "needs.json"
-    code = main(["convert", str(xml), "--output", str(output), *args])
+    code = main(["build", "needs", str(xml), "--output", str(output), *args])
     data = json.loads(output.read_text(encoding="utf-8")) if output.exists() else None
     return code, data
 
@@ -99,7 +99,9 @@ class TestEnvelope:
         first = tmp_path / "first.json"
         second = tmp_path / "second.json"
         for output in (first, second):
-            assert main(["convert", str(GTEST_XML), "--output", str(output)]) == 0
+            assert (
+                main(["build", "needs", str(GTEST_XML), "--output", str(output)]) == 0
+            )
 
         assert first.read_bytes() == second.read_bytes()
 
@@ -203,7 +205,8 @@ class TestLinkProperties:
 
         code = main(
             [
-                "convert",
+                "build",
+                "needs",
                 str(GTEST_XML),
                 "--output",
                 str(tmp_path / "out.json"),
@@ -301,7 +304,7 @@ class TestMultipleInputs:
 
         output = tmp_path / "needs.json"
         code = main(
-            ["convert", str(GTEST_XML), str(PYTEST_XML), "--output", str(output)]
+            ["build", "needs", str(GTEST_XML), str(PYTEST_XML), "--output", str(output)]
         )
         data = json.loads(output.read_text(encoding="utf-8"))
 
@@ -316,7 +319,8 @@ class TestMultipleInputs:
         output = tmp_path / "needs.json"
         code = main(
             [
-                "convert",
+                "build",
+                "needs",
                 str(GTEST_XML),
                 str(GTEST_XML),
                 "--no-config",
@@ -335,7 +339,8 @@ class TestMultipleInputs:
 
         code = main(
             [
-                "convert",
+                "build",
+                "needs",
                 str(tmp_path / "nope.xml"),
                 "--output",
                 str(tmp_path / "out.json"),
@@ -352,7 +357,8 @@ class TestDiagnostics:
 
         main(
             [
-                "convert",
+                "build",
+                "needs",
                 str(PYTEST_XML),
                 "--output",
                 str(tmp_path / "out.json"),
@@ -375,14 +381,21 @@ class TestDiagnostics:
     def test_reports_with_line_attributes_do_not_warn(self, tmp_path, capsys):
         from sphinxcontrib.test_reports.cli import main
 
-        main(["convert", str(GTEST_XML), "--output", str(tmp_path / "out.json")])
+        main(["build", "needs", str(GTEST_XML), "--output", str(tmp_path / "out.json")])
 
         assert "junit_family" not in capsys.readouterr().err
 
 
 def test_the_cli_is_runnable_as_a_module():
     result = subprocess.run(
-        [sys.executable, "-m", "sphinxcontrib.test_reports.cli", "convert", "--help"],
+        [
+            sys.executable,
+            "-m",
+            "sphinxcontrib.test_reports.cli",
+            "build",
+            "needs",
+            "--help",
+        ],
         capture_output=True,
         text=True,
     )
@@ -398,7 +411,7 @@ def test_console_script_is_installed():
         pytest.skip("package not installed into this environment")
 
     result = subprocess.run(
-        [str(script), "convert", "--help"], capture_output=True, text=True
+        [str(script), "build", "needs", "--help"], capture_output=True, text=True
     )
 
     assert result.returncode == 0
@@ -412,7 +425,8 @@ def test_url_synthesis_needs_both_parts(tmp_path, flag):
 
     code = main(
         [
-            "convert",
+            "build",
+            "needs",
             str(GTEST_XML),
             "--output",
             str(tmp_path / "out.json"),

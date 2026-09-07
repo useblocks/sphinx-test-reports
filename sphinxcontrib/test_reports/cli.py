@@ -1,6 +1,6 @@
 """``test-reports`` command line interface.
 
-Converts test-result XML into needs.json *outside* Sphinx, so a build system can
+``test-reports build needs`` turns test-result XML into needs.json *outside* Sphinx, so a build system can
 schedule and cache the conversion and the documentation build only imports the
 result. Nothing in the import chain of this module may import Sphinx; the test
 suite asserts that.
@@ -57,12 +57,20 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subcommands = parser.add_subparsers(dest="command", required=True)
 
-    convert = subcommands.add_parser(
-        "convert",
-        help="Convert one or more test-result XML files into needs.json.",
+    # `build <artifact>`, as ubCode spells it (`ubc build needs`): the command
+    # names what gets produced, and leaves room for further artifacts.
+    build = subcommands.add_parser(
+        "build",
+        help="Build an artifact from test-result XML.",
+        description="Build an artifact from one or more test-result XML files.",
+    )
+    artifacts = build.add_subparsers(dest="artifact", required=True)
+    convert = artifacts.add_parser(
+        "needs",
+        help="Build a needs.json from one or more test-result XML files.",
         description=(
-            "Convert one or more test-result XML files into a needs.json that "
-            "can be consumed with needimport or needs_external_needs. Settings "
+            "Build a needs.json from one or more test-result XML files, ready "
+            "to be consumed with needimport or needs_external_needs. Settings "
             f"default to the {TABLE} table of {DEFAULT_TOML_FILENAME}; a flag "
             "overrides the file's value for that key."
         ),
@@ -352,7 +360,7 @@ def _extra_options(arguments: argparse.Namespace, section: dict) -> list:
     return list(names) if isinstance(names, list) else []
 
 
-def _convert(arguments: argparse.Namespace) -> int:
+def _build_needs(arguments: argparse.Namespace) -> int:
     section, config_path, error = _load_section(arguments)
     if error:
         print(error, file=sys.stderr)
@@ -453,8 +461,8 @@ def _convert(arguments: argparse.Namespace) -> int:
 def main(argv: "list[str] | None" = None) -> int:
     """Entry point. Returns a process exit code instead of raising."""
     arguments = _build_parser().parse_args(argv)
-    if arguments.command == "convert":
-        return _convert(arguments)
+    if arguments.command == "build" and arguments.artifact == "needs":
+        return _build_needs(arguments)
     return 2  # pragma: no cover - argparse rejects unknown commands
 
 

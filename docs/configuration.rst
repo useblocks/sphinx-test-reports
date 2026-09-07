@@ -445,7 +445,7 @@ acting on it works from the same settings instead of each restating them.
 
 **Keys.** Every key is named like its ``tr_*`` config value without the prefix
 (``file_option`` configures ``tr_file_option``, and so on). The build applies
-them all; the :ref:`convert command <cli>` reads the three field-name keys
+them all; the :ref:`build needs command <cli>` reads the three field-name keys
 (``file_option``, ``source_file_option``, ``source_line_option``) and
 ``extra_options`` as well, so the needs it writes have the shape of the needs
 the build creates and carry exactly the fields the build accepts -- and it
@@ -457,7 +457,7 @@ shared with tools on independent release cadences, so a key this version does
 not model must not take your build down.
 
 The ``[test_reports.convert]`` sub-table holds the settings of the
-:ref:`convert command <cli-declarative>`. The build validates it along with
+:ref:`build needs command <cli-declarative>`. The build validates it along with
 the rest of the section -- so a typo is caught whichever consumer reads the file
 first -- but never applies it to a ``tr_*`` value. One rule spans both:
 ``need_type`` in that table and the ``type`` of ``case`` name the same need

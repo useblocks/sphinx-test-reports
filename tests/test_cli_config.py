@@ -43,7 +43,7 @@ def run_convert(tmp_path, arguments, toml=None, config_name=None, subdir=None):
     previous = os.getcwd()
     os.chdir(workdir)
     try:
-        code = main(["convert", PYTEST_XML, "-o", "needs.json", *arguments])
+        code = main(["build", "needs", PYTEST_XML, "-o", "needs.json", *arguments])
     finally:
         os.chdir(previous)
     payload = {}
@@ -202,7 +202,16 @@ class TestFileLookup:
     def test_config_and_no_config_are_mutually_exclusive(self):
         with pytest.raises(SystemExit):
             main(
-                ["convert", PYTEST_XML, "-o", "n.json", "--no-config", "--config", "x"]
+                [
+                    "build",
+                    "needs",
+                    PYTEST_XML,
+                    "-o",
+                    "n.json",
+                    "--no-config",
+                    "--config",
+                    "x",
+                ]
             )
 
 
