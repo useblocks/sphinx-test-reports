@@ -125,6 +125,9 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     needs.add_argument(
+        # Named after `tr_extra_options`, which the flag defaults from.
+        # sphinx-needs has since renamed `needs_extra_options` to
+        # `needs_fields`; realigning this extension's vocabulary is issue #157.
         "--extra-option",
         action="append",
         default=None,
