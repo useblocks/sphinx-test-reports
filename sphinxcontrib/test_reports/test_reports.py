@@ -28,7 +28,11 @@ from sphinxcontrib.test_reports.directives.test_suite import (
 )
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
-from sphinxcontrib.test_reports.fields import FIELDS, RENAMEABLE_FIELDS
+from sphinxcontrib.test_reports.fields import (
+    FIELDS,
+    RENAMEABLE_FIELDS,
+    declaration,
+)
 from sphinxcontrib.test_reports.functions import tr_link
 from sphinxcontrib.test_reports.projectconfig import (
     BRIDGE_KEYS,
@@ -44,28 +48,12 @@ from sphinxcontrib.test_reports.projectconfig import (
 
 VERSION = "1.4.0"
 
-
-def _declaration(name, role=None):
-    """The JSON type and description to register *name* with.
-
-    Both come from :mod:`sphinxcontrib.test_reports.fields`, the table the
-    converter also writes into the ``needs_schema`` of the ``needs.json`` it
-    produces, so the two declarations of a field cannot drift apart. A
-    renameable field is looked up by *role*, so its description survives the
-    rename. A name the table does not know -- a ``tr_extra_options`` entry --
-    is a string field described by its own name, as before.
-    """
-    if role is not None:
-        return RENAMEABLE_FIELDS[role]
-    return FIELDS.get(name, ("string", name))
-
-
 try:
     # sphinx-needs >= 7.0: fields are registered through add_field.
     from sphinx_needs.api import add_field as _add_field
 
-    def _register_field(app, name, role=None):
-        type_, description = _declaration(name, role)
+    def _register_field(app: Sphinx, name: str, role: str | None = None) -> None:
+        type_, description = declaration(name, role)
         try:
             _add_field(name, description, schema={"type": type_})
         except NeedsApiConfigWarning:
@@ -78,10 +66,10 @@ try:
 except ImportError:
     from sphinx_needs.api import add_extra_option as _add_extra_option
 
-    def _register_field(app, name, role=None):
+    def _register_field(app: Sphinx, name: str, role: str | None = None) -> None:
         # add_extra_option takes description and schema from sphinx-needs
         # 6.0.1 on, which is the package's floor.
-        type_, description = _declaration(name, role)
+        type_, description = declaration(name, role)
         try:
             _add_extra_option(
                 app, name, description=description, schema={"type": type_}

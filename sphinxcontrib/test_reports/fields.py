@@ -102,6 +102,22 @@ CORE_FIELDS: dict[str, dict[str, object]] = {
 SCHEMA_DIALECT = "http://json-schema.org/draft-07/schema#"
 
 
+def declaration(name: str, role: str | None = None) -> tuple[str, str]:
+    """The JSON type and description of one field, as ``(type, description)``.
+
+    A renameable field is looked up by its *role*, so that its description
+    survives the rename; every other field by its name. A name the table does
+    not know -- an entry of the configured extra options -- is a string field
+    described by its own name.
+
+    This is the lookup the extension registers its fields with and the one
+    :func:`case_needs_schema` declares them with, so the two cannot disagree.
+    """
+    if role is not None:
+        return RENAMEABLE_FIELDS[role]
+    return FIELDS.get(name, ("string", name))
+
+
 def extra_field(type_: str, description: str) -> dict[str, object]:
     """Declaration of one registered field, as sphinx-needs writes it.
 
@@ -148,13 +164,15 @@ def case_needs_schema(
         name: dict(declaration) | {"field_type": "core"}
         for name, declaration in CORE_FIELDS.items()
     }
-    for role, (type_, description) in RENAMEABLE_FIELDS.items():
-        properties[names[role]] = extra_field(type_, description)
+    for role in RENAMEABLE_FIELDS:
+        properties[names[role]] = extra_field(*declaration(names[role], role))
     for name in CASE_FIELDS:
-        properties[name] = extra_field(*FIELDS[name])
+        properties[name] = extra_field(*declaration(name))
     for name in extra_options:
-        # A property named like a built-in field is not exported (the built-in
-        # value wins, see ``build_need``), so it must not be declared either.
+        # Declared a string because that is what the converter writes for an
+        # exported property, whatever the name. A property named like a
+        # built-in field is not exported at all (the built-in value wins, see
+        # ``build_need``), so `setdefault` leaves the built-in declaration.
         properties.setdefault(name, extra_field("string", str(name)))
     for name in link_fields:
         properties[name] = link_field()
