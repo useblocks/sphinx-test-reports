@@ -201,3 +201,99 @@ class TestUrlPatternCheck:
         problem = check_url_pattern(pattern)
         assert problem is not None
         assert "malformed" in problem
+
+
+class TestDeclaredSchema:
+    """Every field the file uses is declared in the file.
+
+    sphinx-needs writes a ``needs_schema`` into the ``needs.json`` it produces
+    and the converter has to do the same, or the type of a field is knowable
+    only by loading this extension into a Sphinx build -- which a consumer of
+    the artifact (a schema check, S-CORE's tooling, a plain jsonschema
+    validator) does not do.
+    """
+
+    @staticmethod
+    def _declared(**kwargs):
+        """The schema block and the needs of a one-case report."""
+        reports = [("a.xml", [{"name": "s", "testcases": [_case()]}])]
+        payload = build_needs_file(reports, **kwargs)
+        version = payload["versions"][payload["current_version"]]
+        return version["needs_schema"], version["needs"]
+
+    def test_the_block_is_a_json_schema(self):
+        schema, _ = self._declared()
+        assert schema["$schema"] == "http://json-schema.org/draft-07/schema#"
+        assert schema["type"] == "object"
+
+    def test_no_field_of_a_need_is_undeclared(self):
+        schema, needs = self._declared(
+            link_properties={"Verifies": "verifies"},
+            extra_options=("TestType",),
+        )
+        written = {key for need in needs.values() for key in need}
+        assert written - set(schema["properties"]) == set()
+
+    def test_the_core_fields_are_declared_as_core(self):
+        schema, _ = self._declared()
+        properties = schema["properties"]
+        assert properties["id"]["field_type"] == "core"
+        assert properties["tags"]["type"] == "array"
+        assert properties["content"]["type"] == "string"
+
+    def test_time_is_declared_as_the_string_it_is(self):
+        # Pins today's type. It is the field's declared type in the build too,
+        # so the two change together or not at all.
+        schema, _ = self._declared()
+        assert schema["properties"]["time"]["type"] == ["string", "null"]
+
+    def test_every_declaration_carries_a_description(self):
+        # A type alone does not say what a field holds; `case_line` and
+        # `result_text` are not self-explanatory.
+        schema, _ = self._declared(
+            link_properties={"Verifies": "verifies"}, extra_options=("TestType",)
+        )
+        undescribed = [
+            name
+            for name, declaration in schema["properties"].items()
+            if not declaration.get("description")
+        ]
+        assert undescribed == []
+
+    def test_renamed_fields_are_declared_under_their_names(self):
+        schema, _ = self._declared(
+            fields={
+                "file_option": "report_file",
+                "source_file_option": "file",
+                "source_line_option": "line",
+            }
+        )
+        properties = schema["properties"]
+        assert properties["report_file"]["description"] == "Test file name"
+        assert "line" in properties
+        assert "case_file" not in properties
+        assert "case_line" not in properties
+
+    def test_a_mapped_link_field_is_declared_as_a_list_of_ids(self):
+        schema, _ = self._declared(link_properties={"Verifies": "verifies"})
+        assert schema["properties"]["verifies"] == {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Link field",
+            "field_type": "links",
+            "default": [],
+        }
+
+    def test_an_extra_option_is_declared_even_when_no_case_carries_it(self):
+        # The option is what the build registers, so the file says the field
+        # exists; a case without the property simply has no value for it.
+        schema, needs = self._declared(extra_options=("TestType",))
+        assert "TestType" not in next(iter(needs.values()))
+        assert schema["properties"]["TestType"]["type"] == ["string", "null"]
+
+    def test_the_counts_of_file_and_suite_needs_are_not_declared(self):
+        # The converter writes test-case needs only; declaring `passed` and
+        # friends would promise fields the file never carries.
+        schema, _ = self._declared()
+        assert "passed" not in schema["properties"]
+        assert "suites" not in schema["properties"]

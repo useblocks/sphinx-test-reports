@@ -28,6 +28,7 @@ from sphinxcontrib.test_reports.directives.test_suite import (
 )
 from sphinxcontrib.test_reports.environment import install_styles_static_files
 from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
+from sphinxcontrib.test_reports.fields import FIELDS, RENAMEABLE_FIELDS
 from sphinxcontrib.test_reports.functions import tr_link
 from sphinxcontrib.test_reports.projectconfig import (
     BRIDGE_KEYS,
@@ -43,32 +44,30 @@ from sphinxcontrib.test_reports.projectconfig import (
 
 VERSION = "1.4.0"
 
-# Field descriptions for better semantics
-FIELD_DESCRIPTIONS = {
-    "file": "Test file name",
-    "suite": "Test suite name",
-    "case": "Test case name",
-    "case_name": "Test case display name",
-    "case_parameter": "Test case parameter",
-    "classname": "Test class name",
-    "time": "Test execution time",
-    "suites": "Number of test suites",
-    "cases": "Number of test cases",
-    "passed": "Number of passed tests",
-    "skipped": "Number of skipped tests",
-    "failed": "Number of failed tests",
-    "errors": "Number of test errors",
-    "result": "Test result status",
-}
+
+def _declaration(name, role=None):
+    """The JSON type and description to register *name* with.
+
+    Both come from :mod:`sphinxcontrib.test_reports.fields`, the table the
+    converter also writes into the ``needs_schema`` of the ``needs.json`` it
+    produces, so the two declarations of a field cannot drift apart. A
+    renameable field is looked up by *role*, so its description survives the
+    rename. A name the table does not know -- a ``tr_extra_options`` entry --
+    is a string field described by its own name, as before.
+    """
+    if role is not None:
+        return RENAMEABLE_FIELDS[role]
+    return FIELDS.get(name, ("string", name))
+
 
 try:
     # sphinx-needs >= 7.0: fields are registered through add_field.
     from sphinx_needs.api import add_field as _add_field
 
-    def _register_field(app, name, schema=None):
-        description = FIELD_DESCRIPTIONS.get(name, name)
+    def _register_field(app, name, role=None):
+        type_, description = _declaration(name, role)
         try:
-            _add_field(name, description, schema=schema)
+            _add_field(name, description, schema={"type": type_})
         except NeedsApiConfigWarning:
             # Already registered, e.g. via needs_fields or needs_extra_options
             # in conf.py. Anything else is a real error and must surface.
@@ -79,12 +78,13 @@ try:
 except ImportError:
     from sphinx_needs.api import add_extra_option as _add_extra_option
 
-    def _register_field(app, name, schema=None):
+    def _register_field(app, name, role=None):
         # add_extra_option takes description and schema from sphinx-needs
         # 6.0.1 on, which is the package's floor.
+        type_, description = _declaration(name, role)
         try:
             _add_extra_option(
-                app, name, description=FIELD_DESCRIPTIONS.get(name, name), schema=schema
+                app, name, description=description, schema={"type": type_}
             )
         except NeedsApiConfigWarning:
             logging.getLogger(__name__).debug(
@@ -390,36 +390,21 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
 
     # sphinx-needs >= 6 registers fields with a schema; there is no older
     # branch to keep, the package requires that version.
-    _register_field(
-        app, getattr(config, "tr_file_option", "file"), schema={"type": "string"}
-    )
-    _register_field(
-        app,
-        getattr(config, "tr_source_file_option", "case_file"),
-        schema={"type": "string"},
-    )
-    _register_field(
-        app,
-        getattr(config, "tr_source_line_option", "case_line"),
-        schema={"type": "string"},
-    )
-    _register_field(app, "suite", schema={"type": "string"})
-    _register_field(app, "case", schema={"type": "string"})
-    _register_field(app, "case_name", schema={"type": "string"})
-    _register_field(app, "case_parameter", schema={"type": "string"})
-    _register_field(app, "classname", schema={"type": "string"})
-    _register_field(app, "time", schema={"type": "string"})
-    _register_field(app, "suites", schema={"type": "integer"})
-    _register_field(app, "cases", schema={"type": "integer"})
-    _register_field(app, "passed", schema={"type": "integer"})
-    _register_field(app, "skipped", schema={"type": "integer"})
-    _register_field(app, "failed", schema={"type": "integer"})
-    _register_field(app, "errors", schema={"type": "integer"})
-    _register_field(app, "result", schema={"type": "string"})
-    # Written by the converter only, so a needs.json it produced imports
-    # without sphinx-needs dropping them as unknown keys.
-    _register_field(app, "result_text", schema={"type": "string"})
-    _register_field(app, "remote_url", schema={"type": "string"})
+    #
+    # Type and description of every field come from the shared table in
+    # `fields`, which the converter writes into the `needs_schema` of the
+    # needs.json it produces -- a field registered here and the same field
+    # declared there cannot say different things. `result_text` and
+    # `remote_url` are written by the converter only, and registered here so
+    # that a needs.json it produced imports without sphinx-needs dropping them
+    # as unknown keys.
+    # The renameable fields are registered under the name their `tr_*` value
+    # selects -- spelled like the role with the prefix, as every bridged key is.
+    for role in RENAMEABLE_FIELDS:
+        name = getattr(config, f"tr_{role}", DEFAULT_FIELD_NAMES[role])
+        _register_field(app, name, role=role)
+    for name in FIELDS:
+        _register_field(app, name)
     # Extra dynamic functions
     # For details about usage read
     # https://sphinx-needs.readthedocs.io/en/latest/api.html#sphinx_needs.api.configuration.add_dynamic_function
@@ -429,7 +414,7 @@ def sphinx_needs_update(app: Sphinx, config: Config) -> None:
     # extracted from JUnit XML are accepted by sphinx-needs
     tr_extra_options = getattr(config, "tr_extra_options", [])
     for option_name in tr_extra_options:
-        _register_field(app, option_name, schema={"type": "string"})
+        _register_field(app, option_name)
 
     # Extra need types
     # For details about usage read

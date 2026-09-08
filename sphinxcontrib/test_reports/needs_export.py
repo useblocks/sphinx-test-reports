@@ -3,11 +3,17 @@
 Sphinx-free: the conversion runs as a build action, and the documentation build
 only imports the result.
 
-Two rules shape the output:
+Three rules shape the output:
 
 * **Every field is always present.** Absent XML attributes become empty values
   rather than missing keys, so a schema can simply require a field and a
   consumer never has to distinguish "unset" from "absent".
+* **Every field is declared in the file**, in the ``needs_schema`` sphinx-needs
+  also writes into the files it produces itself, so the type of a field is
+  readable from the artifact instead of only from a Sphinx build with this
+  extension loaded. The declarations come from
+  :mod:`sphinxcontrib.test_reports.fields`, the same table the extension
+  registers its fields from.
 * **Nothing depends on the wall clock or on dict ordering**, so the file is a
   cacheable build artifact and a diffable piece of evidence.
 """
@@ -16,6 +22,7 @@ import re
 import textwrap
 from typing import Callable, Iterable, Iterator, Mapping, Sequence, Union
 
+from sphinxcontrib.test_reports.fields import case_needs_schema
 from sphinxcontrib.test_reports.identity import (
     UNKNOWN,
     case_display_name,
@@ -337,6 +344,15 @@ def build_needs_file(
             version: {
                 "needs": needs,
                 "needs_amount": len(needs),
+                # The type of every field the file uses, as sphinx-needs
+                # declares the fields of the files it writes itself. Without
+                # it the types are knowable only by loading the extension into
+                # a Sphinx build, which a consumer of the artifact does not do.
+                "needs_schema": case_needs_schema(
+                    {**DEFAULT_FIELD_NAMES, **(fields or {})},
+                    extra_options=extra_options,
+                    link_fields=(link_properties or {}).values(),
+                ),
             }
         },
     }

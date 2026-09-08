@@ -48,6 +48,30 @@ reads them from the same ``[test_reports]`` section (:ref:`tr_config_from_toml`)
 so a project that spells its source location ``file``/``line`` gets a
 ``needs.json`` that says so too.
 
+Every field is declared in the file, under ``versions.<version>.needs_schema``,
+the way Sphinx-Needs declares the fields of the ``needs.json`` a build writes:
+its JSON type, a description, and whether it is a core field, a registered
+field or a link field. Configured ``extra_options`` and mapped link fields are
+declared whether or not a case populated them -- the block describes the
+format, not the one report at hand. So a consumer that never runs Sphinx (a
+schema check, a metamodel validator) can read the type of every field from the
+artifact:
+
+.. code-block:: json
+
+   "time": {
+     "type": ["string", "null"],
+     "description": "Test execution time, in seconds",
+     "field_type": "extra",
+     "default": null
+   }
+
+The declarations and the fields the extension registers with Sphinx-Needs come
+from one table, so a field cannot be typed one way in the file and another way
+in the build. ``time`` is declared a string because that is what the build's
+``test-case`` directive writes; turning it into a number is
+`#156 <https://github.com/useblocks/sphinx-test-reports/issues/156>`__.
+
 Consuming the result
 --------------------
 

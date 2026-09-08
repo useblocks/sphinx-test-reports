@@ -35,6 +35,11 @@ Unreleased
   only imports the result. Its settings come from the ``[test_reports.build.needs]``
   table of ``ubproject.toml``, with flags for per-invocation overrides. See
   :ref:`cli`.
+* Feature: The produced ``needs.json`` declares every field it uses in a
+  ``needs_schema``, as Sphinx-Needs does for the files a build writes, so a
+  consumer can read the type of a field from the artifact instead of from a
+  Sphinx build with the extension loaded. The declarations and the fields the
+  extension registers come from one table, so the two cannot drift apart.
 * Support: Python 3.10 is no longer supported. It reached the end of upstream
   support, and dropping it lets the package read TOML with ``tomllib`` from the
   standard library instead of carrying a backport.

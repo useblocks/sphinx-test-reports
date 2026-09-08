@@ -38,6 +38,14 @@ def _needs(data):
     return data["versions"][version]["needs"]
 
 
+def _field_type(declaration):
+    """The declared type, with the nullability the schema spells separately."""
+    kind = declaration["type"]
+    if isinstance(kind, str):
+        return kind
+    return next(iter(set(kind) - {"null"}))
+
+
 class TestNoSphinxImport:
     """The converter has to be usable without the documentation toolchain."""
 
@@ -80,6 +88,16 @@ class TestEnvelope:
 
         version = data["versions"][data["current_version"]]
         assert version["needs_amount"] == len(version["needs"]) == 5
+
+    def test_every_written_field_is_declared(self, tmp_path):
+        """The file says what its fields are, without a Sphinx build to ask."""
+        _, data = _convert(tmp_path)
+
+        version = data["versions"][data["current_version"]]
+        declared = set(version["needs_schema"]["properties"])
+        written = {key for need in version["needs"].values() for key in need}
+
+        assert written - declared == set()
 
     def test_no_timestamp_is_written(self, tmp_path):
         """A wall clock would defeat action caching and evidence diffs."""
@@ -536,3 +554,76 @@ class TestImportIntoABuild:
         html = (docs / "_build" / "html" / "index.html").read_text(encoding="utf-8")
         for need_id in _needs(data):
             assert need_id in html
+
+    def test_the_declared_types_match_the_extension_s(self, tmp_path):
+        """What the file declares is what the build registers.
+
+        The extension declares its fields to sphinx-needs, the converter
+        declares them into the file, and an import brings the two together --
+        so a field the two type differently is an import-time type error
+        waiting to happen. Only the type is compared: the wording of a core
+        field's description belongs to sphinx-needs and moves with its
+        version.
+        """
+        from shutil import copytree
+
+        from sphinx.application import Sphinx
+
+        docs = tmp_path / "docs"
+        copytree(Path(__file__).parent / "doc_test" / "basic_doc", docs)
+        (tmp_path / ".git").mkdir(exist_ok=True)  # bounds the upward search
+        with (docs / "conf.py").open("a", encoding="utf-8") as handle:
+            # The build has to write a needs.json of its own to compare with.
+            handle.write("\nneeds_build_json = True\n")
+            handle.write('needs_id_regex = "^[A-Za-z0-9_]{5,}"\n')
+        (docs / "index.rst").write_text(
+            "Imported\n========\n\n.. needimport:: needs.json\n", encoding="utf-8"
+        )
+        config = docs / "ubproject.toml"
+        config.write_text(
+            '[test_reports]\nextra_options = ["TestType"]\n', encoding="utf-8"
+        )
+        code, data = _convert(docs, "--config", str(config), xml=GTEST_XML)
+        assert code == 0
+
+        app = Sphinx(
+            srcdir=docs,
+            confdir=docs,
+            outdir=docs / "_build" / "html",
+            doctreedir=docs / "_build" / "doctrees",
+            buildername="html",
+            freshenv=True,
+            status=None,
+            warning=None,
+        )
+        app.build()
+        built = json.loads(
+            (docs / "_build" / "html" / "needs.json").read_text(encoding="utf-8")
+        )
+        registered = built["versions"][built["current_version"]].get("needs_schema")
+        if registered is None:
+            pytest.skip("this sphinx-needs does not declare its fields in needs.json")
+
+        declared = data["versions"][data["current_version"]]["needs_schema"]
+        shared = set(declared["properties"]) & set(registered["properties"])
+        # Guard against a vacuous comparison: these are the fields the
+        # converter writes beyond the core ones.
+        assert {
+            "case",
+            "case_file",
+            "case_line",
+            "case_name",
+            "case_parameter",
+            "classname",
+            "file",
+            "remote_url",
+            "result",
+            "result_text",
+            "suite",
+            "time",
+            "TestType",
+        } <= shared
+
+        assert {name: _field_type(declared["properties"][name]) for name in shared} == {
+            name: _field_type(registered["properties"][name]) for name in shared
+        }
