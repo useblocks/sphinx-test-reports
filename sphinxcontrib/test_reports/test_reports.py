@@ -8,8 +8,15 @@ from sphinx.config import Config
 from sphinx.util import logging
 
 # from docutils import nodes
-from sphinx_needs.api import add_dynamic_function, add_need_type
-from sphinx_needs.exceptions import NeedsApiConfigWarning
+# sphinx-needs ships no py.typed marker and no stubs exist, so every import
+# from it is untyped to mypy. Nothing to fix on this side.
+from sphinx_needs.api import (  # type: ignore[import-untyped]
+    add_dynamic_function,
+    add_need_type,
+)
+from sphinx_needs.exceptions import (  # type: ignore[import-untyped]
+    NeedsApiConfigWarning,
+)
 
 from sphinxcontrib.test_reports.directives.test_case import TestCase, TestCaseDirective
 from sphinxcontrib.test_reports.directives.test_env import EnvReport, EnvReportDirective
@@ -220,7 +227,7 @@ def setup(app: Sphinx) -> dict[str, object]:
     }
 
 
-def register_tr_extra_options(app):
+def register_tr_extra_options(app: Sphinx) -> None:
     """Register extra options with directives."""
 
     log = logging.getLogger(__name__)
@@ -229,12 +236,16 @@ def register_tr_extra_options(app):
 
     if tr_extra_options:
         for direc in [TestSuiteDirective, TestFileDirective, TestCaseDirective]:
+            # docutils types `option_spec` as optional on the directive base
+            # class. All three define one, so this keeps mutating the existing
+            # mapping; the assignment only matters in the case the type allows
+            # for and the classes do not produce.
+            spec = direc.option_spec or {}
             for option_name in tr_extra_options:
-                direc.option_spec[option_name] = directives.unchanged
+                spec[option_name] = directives.unchanged
                 log.debug(f"Registered {option_name} with {direc}")
-                log.debug(
-                    f"{direc}.option_spec now has keys: {list(direc.option_spec.keys())}"
-                )
+                log.debug(f"{direc}.option_spec now has keys: {list(spec.keys())}")
+            direc.option_spec = spec
 
 
 def _command_line_overrides(config: Config) -> set[str]:
@@ -326,24 +337,28 @@ def load_toml_config(app: Sphinx, config: Config) -> None:
         )
 
 
-def tr_preparation(app, *args):
+def tr_preparation(app: Sphinx, *args: object) -> None:
     """
     Prepares needed vars in the app context.
     """
-    if not hasattr(app, "tr_types"):
-        app.tr_types = {}
+    # `tr_types` is attached to the application object, which has no such
+    # attribute as far as a type checker is concerned -- the directives read it
+    # back the same way (see `test_common.py`). One narrow ignore for the
+    # attachment; the rest of the function works on a typed mapping.
+    types: dict[str, list[str]] = getattr(app, "tr_types", None) or {}
+    app.tr_types = types  # type: ignore[attr-defined]
 
     # Collects the configured test-report node types
-    app.tr_types[app.config.tr_file[0]] = app.config.tr_file[1:]
-    app.tr_types[app.config.tr_suite[0]] = app.config.tr_suite[1:]
-    app.tr_types[app.config.tr_case[0]] = app.config.tr_case[1:]
+    types[app.config.tr_file[0]] = app.config.tr_file[1:]
+    types[app.config.tr_suite[0]] = app.config.tr_suite[1:]
+    types[app.config.tr_case[0]] = app.config.tr_case[1:]
 
     app.add_directive(app.config.tr_file[0], TestFileDirective)
     app.add_directive(app.config.tr_suite[0], TestSuiteDirective)
     app.add_directive(app.config.tr_case[0], TestCaseDirective)
 
 
-def check_field_name_collisions(config) -> None:
+def check_field_name_collisions(config: Config) -> None:
     """Reject configurations where two field options name the same need field.
 
     The report path and the test-source location are separate fields; if two
