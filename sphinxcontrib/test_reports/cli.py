@@ -17,10 +17,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Mapping, Sequence
 
 from sphinxcontrib.test_reports.junitparser import JUnitParser
 from sphinxcontrib.test_reports.needs_export import (
     DEFAULT_VERSION,
+    Report,
     build_needs_file,
     iter_cases,
     optional,
@@ -49,6 +51,20 @@ TABLE = f"[{NEEDS_TABLE_PATH}]"
 
 def _warn(message: str) -> None:
     print(f"warning: {message}", file=sys.stderr)
+
+
+# The conversion settings are resolved key by key in a loop (see
+# `_resolve_settings`), which a TypedDict cannot express, so the mapping stays
+# `dict[str, object]`. These two state at the point of use the type
+# `_NEEDS_KEY_TYPES` already enforces when the file is read.
+def _text(value: object) -> str:
+    """A setting the validation pins to a string."""
+    return value if isinstance(value, str) else ""
+
+
+def _texts(value: object) -> "list[str]":
+    """A setting the validation pins to a list of strings."""
+    return [str(item) for item in value] if isinstance(value, list) else []
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -187,9 +203,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_link_properties(
-    values: "list[str] | dict[str, str] | None",
-) -> dict[str, str]:
+def _parse_link_properties(values: object) -> dict[str, str]:
     """Normalise the link-property mapping from any input spelling.
 
     Flags provide ``PROPERTY=LINK_FIELD`` strings; the TOML file provides a
@@ -197,6 +211,9 @@ def _parse_link_properties(
     must yield non-empty keys and values -- a silently dropped mapping would
     send link fields into needs.json as plain fields instead. This is the only
     place the mapping is normalised, so the two spellings cannot drift.
+
+    The parameter is ``object`` because the value arrives from a flag or from
+    the TOML file; this function is where its shape is established.
     """
     if values is None:
         return {}
@@ -211,9 +228,14 @@ def _parse_link_properties(
             mapping[str(property_name).strip()] = str(link_field).strip()
         return mapping
 
+    if not isinstance(values, list):
+        raise ValueError(
+            f'link_properties expects a PROPERTY = "LINK_FIELD" table, got {values!r}'
+        )
+
     mapping = {}
     for value in values:
-        property_name, separator, link_field = value.partition("=")
+        property_name, separator, link_field = str(value).partition("=")
         if not separator or not property_name.strip() or not link_field.strip():
             raise ValueError(
                 f"--link-property expects PROPERTY=LINK_FIELD, got {value!r}"
@@ -222,7 +244,9 @@ def _parse_link_properties(
     return mapping
 
 
-def _warn_about_absent_source_lines(path: Path, suites: list) -> None:
+def _warn_about_absent_source_lines(
+    path: Path, suites: Sequence[Mapping[str, object]]
+) -> None:
     """Report the most common cause of a missing source location.
 
     pytest emits ``file``/``line`` as ``<testcase>`` attributes only under
@@ -245,7 +269,7 @@ def _warn_about_absent_source_lines(path: Path, suites: list) -> None:
 
 def _load_section(
     arguments: argparse.Namespace,
-) -> "tuple[dict, Path | None, str | None]":
+) -> "tuple[dict[str, object], Path | None, str | None]":
     """Load the ``[test_reports]`` section, honouring ``--config``/``--no-config``.
 
     Returns ``(section, path, error_message)``. ``section`` is ``{}`` and
@@ -315,8 +339,8 @@ _FLAGS["link_properties"] = "--link-property"
 
 
 def _resolve_settings(
-    arguments: argparse.Namespace, table: dict
-) -> "tuple[dict, dict[str, str]]":
+    arguments: argparse.Namespace, table: "dict[str, object]"
+) -> "tuple[dict[str, object], dict[str, str]]":
     """Merge the conversion settings: flag > TOML table > built-in default.
 
     Flags default to ``None``, so ``None`` means "not given"; every key resolves
@@ -338,8 +362,8 @@ def _resolve_settings(
     tags = resolved["tags"]
     if isinstance(tags, str):  # comma-separated, from the flag
         resolved["tags"] = [tag.strip() for tag in tags.split(",") if tag.strip()]
-    else:  # array from the TOML file
-        resolved["tags"] = [str(tag) for tag in tags or []]
+    else:  # array from the TOML file, or the key is absent
+        resolved["tags"] = _texts(tags)
 
     return resolved, sources
 
@@ -373,7 +397,9 @@ def _pair_requirement(sources: "dict[str, str]", path: "Path | None") -> str:
     return requirement
 
 
-def _extra_options(arguments: argparse.Namespace, section: dict) -> list:
+def _extra_options(
+    arguments: argparse.Namespace, section: "dict[str, object]"
+) -> "list[str]":
     """Properties exported as fields: the flag if given, else the section's."""
     if arguments.extra_option is not None:
         return list(arguments.extra_option)
@@ -431,14 +457,16 @@ def _build_needs(arguments: argparse.Namespace) -> int:
         )
         return 2
 
-    reports: list = []
+    reports: "list[Report]" = []
     for name in arguments.files:
         path = Path(name)
         if not path.is_file():
             print(f"error: no such file: {path}", file=sys.stderr)
             return 1
         try:
-            parsed = JUnitParser(str(path)).parse()
+            # The parser is not typed yet (#114), so both calls are
+            # untyped to mypy; nothing to fix from this side.
+            parsed = JUnitParser(str(path)).parse()  # type: ignore[no-untyped-call]
         except Exception as error:  # noqa: BLE001 - report, never traceback
             print(f"error: {path}: {error}", file=sys.stderr)
             return 1
@@ -450,14 +478,14 @@ def _build_needs(arguments: argparse.Namespace) -> int:
     try:
         payload = build_needs_file(
             reports,
-            project=settings["project"],
-            version=settings["version"],
-            need_type=settings["need_type"],
-            tags=settings["tags"],
+            project=_text(settings["project"]),
+            version=_text(settings["version"]),
+            need_type=_text(settings["need_type"]),
+            tags=_texts(settings["tags"]),
             link_properties=link_properties,
-            base_url=normalise_remote_url(settings["remote_url"]),
-            commit=settings["commit"],
-            url_pattern=settings["url_pattern"],
+            base_url=normalise_remote_url(_text(settings["remote_url"])),
+            commit=_text(settings["commit"]),
+            url_pattern=_text(settings["url_pattern"]),
             # The renameable field names and the accepted extra fields come
             # from the same section the build reads, so an imported need has
             # the shape of a local one.
