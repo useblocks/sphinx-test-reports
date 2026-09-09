@@ -57,6 +57,9 @@ dev = [
   # Stubs for docutils, which ships none: without them every directive
   # option spec is untyped and `test_reports.py` cannot be checked.
   "types-docutils>=0.21",
+  # pytest: mypy type-checks the pytest plugin, so `uv sync --group dev` (the
+  # CI mypy job) has to be able to follow its imports.
+  "pytest>=7.0",
 ]
 
 [project.scripts]
