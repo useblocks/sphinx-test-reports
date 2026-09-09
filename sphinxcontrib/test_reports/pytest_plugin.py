@@ -27,6 +27,7 @@ is only ever loaded by pytest.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
 import pytest
@@ -36,7 +37,7 @@ import pytest
 MARKER = "test_properties"
 
 #: Property names written to the XML, matching S-CORE's metamodel spelling so
-#: a ``link_properties = { PartiallyVerifies = "partially_verifies" }`` in
+#: a ``property_link_types = { PartiallyVerifies = "partially_verifies" }`` in
 #: ``ubproject.toml`` maps them without translation.
 PARTIALLY_VERIFIES = "PartiallyVerifies"
 FULLY_VERIFIES = "FullyVerifies"
@@ -68,33 +69,124 @@ _RUNFILES_MARKER = "_main/"
 
 Recorder = Callable[[str, str], None]
 
+#: What a property keyword accepts: one value, or -- for a multi-valued
+#: property -- a sequence of values. ``None`` and empty values are not written.
+Value = str | Sequence[str] | None
+
+
+@dataclass(frozen=True)
+class Property:
+    """How one keyword of :func:`add_test_properties` reaches the XML."""
+
+    #: The ``<property name="...">`` written.
+    name: str
+    #: Multi-valued: a sequence of values is joined with ``", "``, which
+    #: ``tr_property_link_types`` splits again on the build side; a bare string
+    #: counts as one value. A single-valued property takes one value, and a
+    #: sequence is an error rather than a silent join.
+    multi: bool = False
+
+
+#: Keyword -> how it is written. S-CORE's four are pre-registered; a project
+#: adds its own with :func:`register_property`. A keyword not found here is
+#: written under its own name and takes a single value only.
+PROPERTIES: dict[str, Property] = {
+    "partially_verifies": Property(PARTIALLY_VERIFIES, multi=True),
+    "fully_verifies": Property(FULLY_VERIFIES, multi=True),
+    "test_type": Property(TEST_TYPE),
+    "derivation_technique": Property(DERIVATION_TECHNIQUE),
+}
+
+
+def register_property(
+    keyword: str, name: str | None = None, *, multi: bool = False
+) -> Property:
+    """Teach :func:`add_test_properties` and :func:`apply_test_metadata` *keyword*.
+
+    *name* is the ``<property>`` name written to the XML (default: the keyword
+    itself); a *multi*-valued property takes a sequence of values and writes
+    them ``", "``-joined, the shape ``tr_property_link_types`` reads. Call it
+    once, before the tests are collected -- a ``conftest.py`` is the place::
+
+        register_property("satisfies", "Satisfies", multi=True)
+
+    lets a test write ``@add_test_properties(satisfies=["REQ_1", "REQ_2"])``.
+    """
+    registered = Property(name or keyword, multi=multi)
+    PROPERTIES[keyword] = registered
+    return registered
+
+
+def _lookup(keyword: str) -> Property | None:
+    """The registered property for *keyword*, also when given by its XML name."""
+    registered = PROPERTIES.get(keyword)
+    if registered is not None:
+        return registered
+    return next((p for p in PROPERTIES.values() if p.name == keyword), None)
+
+
+def _serialise(keyword: str, registered: Property | None, value: object) -> str | None:
+    """The text written for *value*, or ``None`` when there is nothing to write."""
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float)):
+        return str(value) or None
+    if isinstance(value, Sequence):
+        if registered is None:
+            raise TypeError(
+                f"{keyword!r} is not a registered property and takes a single "
+                f"value; register_property({keyword!r}, multi=True) lets it "
+                "write a list"
+            )
+        if not registered.multi:
+            raise TypeError(f"{keyword!r} takes a single value, not a sequence")
+        return ", ".join(str(item) for item in value if item not in (None, "")) or None
+    raise TypeError(
+        f"{keyword!r} takes a string"
+        + (" or a list of strings" if registered and registered.multi else "")
+        + f", not {type(value).__name__}"
+    )
+
+
+def _normalise(properties: Mapping[str, object]) -> dict[str, str]:
+    """The XML properties for keyword/value pairs; empty values dropped."""
+    written: dict[str, str] = {}
+    for keyword, value in properties.items():
+        registered = _lookup(keyword)
+        text = _serialise(keyword, registered, value)
+        if text is not None:
+            written[registered.name if registered else keyword] = text
+    return written
+
 
 def properties_mapping(
     *,
-    partially_verifies: Sequence[str] | None = None,
-    fully_verifies: Sequence[str] | None = None,
+    partially_verifies: Value = None,
+    fully_verifies: Value = None,
     test_type: str | None = None,
     derivation_technique: str | None = None,
-    **properties: str,
+    **properties: Value,
 ) -> dict[str, str]:
     """The property mapping that ends up in the XML, empty values dropped.
 
-    Single source of truth for the decorator and the runtime helper. Lists are
-    joined with ``", "``, which is what ``tr_property_link_types``
-    splits on again.
+    Single source of truth for the decorator and the runtime helper. How a
+    value is written is decided by :data:`PROPERTIES`, not by the keyword it
+    arrived under: the four named parameters are sugar over the same mechanism
+    that serves every registered keyword.
     """
-    mapping = {
-        PARTIALLY_VERIFIES: ", ".join(partially_verifies or ()),
-        FULLY_VERIFIES: ", ".join(fully_verifies or ()),
-        TEST_TYPE: test_type or "",
-        DERIVATION_TECHNIQUE: derivation_technique or "",
-        **properties,
-    }
-    cleaned = {name: value for name, value in mapping.items() if value}
+    cleaned = _normalise(
+        {
+            "partially_verifies": partially_verifies,
+            "fully_verifies": fully_verifies,
+            "test_type": test_type,
+            "derivation_technique": derivation_technique,
+            **properties,
+        }
+    )
     if not cleaned:
         raise ValueError(
             "no test properties given: at least one of partially_verifies, "
-            "fully_verifies, test_type, derivation_technique or a custom "
+            "fully_verifies, test_type, derivation_technique or a registered "
             "property is needed"
         )
     return cleaned
@@ -102,11 +194,11 @@ def properties_mapping(
 
 def add_test_properties(
     *,
-    partially_verifies: Sequence[str] | None = None,
-    fully_verifies: Sequence[str] | None = None,
+    partially_verifies: Value = None,
+    fully_verifies: Value = None,
     test_type: str | None = None,
     derivation_technique: str | None = None,
-    **properties: str,
+    **properties: Value,
 ) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Decorator recording requirement links and classification for a test.
 
@@ -120,8 +212,9 @@ def add_test_properties(
         def test_addition():
             ...
 
-    Extra keyword arguments become properties under their own names, for
-    metamodels with fields this plugin does not know.
+    Further keyword arguments are written under their own names with a single
+    value each; :func:`register_property` gives a project's own link fields the
+    list handling of ``partially_verifies``.
     """
     mapping = properties_mapping(
         partially_verifies=partially_verifies,
@@ -142,7 +235,7 @@ def add_test_properties(
 def apply_test_metadata(
     *,
     record_property: Recorder,
-    metadata: Mapping[str, Sequence[str] | str | None],
+    metadata: Mapping[str, object],
     record_xml_attribute: Recorder | None = None,
     file: str | None = None,
     line: int | None = None,
@@ -152,34 +245,15 @@ def apply_test_metadata(
     For tests whose metadata is only known inside the test body -- typically a
     parameterised test driven by files that carry their own metadata. Call it
     *early*, before any assertion, so the properties are attached even when the
-    test then fails. *metadata* uses the decorator's argument names as keys.
+    test then fails. *metadata* uses the decorator's argument names as keys;
+    metadata without a value -- absent, or with nothing but empty entries --
+    writes no properties and is not an error.
 
     With *record_xml_attribute*, *file* and *line* override the location the
     plugin's fixture recorded, so a case can point at the file that drove it
     rather than at the test function.
     """
-    if not metadata:
-        return
-    properties = {
-        name: str(value)
-        for name, value in metadata.items()
-        if name
-        not in (
-            "partially_verifies",
-            "fully_verifies",
-            "test_type",
-            "derivation_technique",
-        )
-        and value
-    }
-    mapping = properties_mapping(
-        partially_verifies=_as_list(metadata.get("partially_verifies")),
-        fully_verifies=_as_list(metadata.get("fully_verifies")),
-        test_type=_as_str(metadata.get("test_type")),
-        derivation_technique=_as_str(metadata.get("derivation_technique")),
-        **properties,
-    )
-    for name, value in mapping.items():
+    for name, value in _normalise(metadata).items():
         record_property(name, value)
 
     if record_xml_attribute is not None:
@@ -187,20 +261,6 @@ def apply_test_metadata(
             record_xml_attribute("file", clean_source_path(file))
         if line is not None:
             record_xml_attribute("line", str(line))
-
-
-def _as_list(value: object) -> list[str] | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, Sequence):
-        return [str(item) for item in value]
-    return [str(value)]
-
-
-def _as_str(value: object) -> str | None:
-    return None if value is None else str(value)
 
 
 def clean_source_path(path: str) -> str:

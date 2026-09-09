@@ -10,9 +10,12 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from sphinxcontrib.test_reports import pytest_plugin
 from sphinxcontrib.test_reports.pytest_plugin import (
+    apply_test_metadata,
     clean_source_path,
     properties_mapping,
+    register_property,
 )
 
 PLUGIN = "sphinxcontrib.test_reports.pytest_plugin"
@@ -163,3 +166,68 @@ class TestHelpers:
             [sys.executable, "-c", script], capture_output=True, text=True, check=True
         )
         assert result.stdout.strip() == ""
+
+
+class TestPropertyValues:
+    """How a keyword's value reaches the XML: declared per property, not guessed."""
+
+    def test_a_bare_string_is_one_requirement_id(self):
+        # str is a Sequence[str]; it must not be exploded character by character.
+        assert properties_mapping(partially_verifies="REQ_1") == {
+            "PartiallyVerifies": "REQ_1"
+        }
+
+    def test_a_list_for_a_single_valued_property_is_an_error(self):
+        with pytest.raises(TypeError, match="test_type.*single value"):
+            properties_mapping(test_type=["a", "b"])
+
+    def test_a_custom_keyword_takes_a_single_value(self):
+        assert properties_mapping(Owner="team-a") == {"Owner": "team-a"}
+
+    def test_a_list_under_an_unregistered_keyword_is_an_error(self):
+        # Previously written as the Python repr "['REQ_1', 'REQ_2']".
+        with pytest.raises(TypeError, match="Satisfies.*register_property"):
+            properties_mapping(Satisfies=["REQ_1", "REQ_2"])
+
+    def test_a_registered_keyword_joins_its_list(self, monkeypatch):
+        monkeypatch.setattr(pytest_plugin, "PROPERTIES", dict(pytest_plugin.PROPERTIES))
+        register_property("satisfies", "Satisfies", multi=True)
+        assert properties_mapping(satisfies=["REQ_1", "REQ_2"]) == {
+            "Satisfies": "REQ_1, REQ_2"
+        }
+        assert properties_mapping(satisfies="REQ_1") == {"Satisfies": "REQ_1"}
+
+    def test_the_xml_name_of_a_registered_property_works_as_keyword(self):
+        assert properties_mapping(PartiallyVerifies=["REQ_1", "REQ_2"]) == {
+            "PartiallyVerifies": "REQ_1, REQ_2"
+        }
+
+    def test_numbers_are_written_as_text(self):
+        assert properties_mapping(Priority=3) == {"Priority": "3"}
+
+    def test_an_unordered_collection_is_an_error(self):
+        # str(set) would be written otherwise, and a set has no stable order.
+        with pytest.raises(TypeError, match="partially_verifies"):
+            properties_mapping(partially_verifies={"REQ_1", "REQ_2"})
+
+
+class TestRuntimeMetadata:
+    def test_all_empty_metadata_records_nothing(self):
+        # A spec file with an empty metadata block must not fail the test.
+        recorded = []
+        apply_test_metadata(
+            record_property=lambda name, value: recorded.append((name, value)),
+            metadata={"fully_verifies": [], "test_type": ""},
+        )
+        assert recorded == []
+
+    def test_the_location_is_applied_without_metadata(self):
+        attributes = {}
+        apply_test_metadata(
+            record_property=lambda name, value: None,
+            metadata={},
+            record_xml_attribute=attributes.__setitem__,
+            file="../_main/specs/a.rst",
+            line=7,
+        )
+        assert attributes == {"file": "specs/a.rst", "line": "7"}

@@ -54,10 +54,21 @@ writes, on that test's ``<testcase>``:
      <property name="DerivationTechnique" value="requirements-analysis"/>
    </properties>
 
-``fully_verifies`` writes ``FullyVerifies`` the same way. Any further keyword
-argument becomes a property under its own name, for metamodels with fields the
-plugin does not know (``Owner="team-a"`` writes ``Owner``). Empty values are not
-written, and a decorator that would write nothing is an error.
+``fully_verifies`` writes ``FullyVerifies`` the same way. How a value is written
+is declared per property, not guessed from the value:
+
+* ``partially_verifies`` and ``fully_verifies`` are multi-valued: a list is
+  joined with ``", "`` -- the shape ``tr_property_link_types`` splits again --
+  and a bare string is one ID (``partially_verifies="REQ_1"`` writes ``REQ_1``,
+  not five one-letter IDs).
+* ``test_type`` and ``derivation_technique`` are single-valued; a list is a
+  ``TypeError``, not a silent join.
+* Any further keyword argument is written under its own name with a single
+  value (``Owner="team-a"`` writes ``Owner``). A list under a keyword the plugin
+  does not know is a ``TypeError``: register the keyword first, see below.
+
+Empty values are not written, and a decorator that would write nothing is an
+error.
 
 The property names are the ones S-CORE's metamodel spells. On the build side
 they arrive through the directives' property handling: ``tr_property_link_types``
@@ -70,6 +81,25 @@ turns a comma-separated property into a link field --
 -- and ``tr_extra_options`` lists the properties that become plain fields
 (``TestType``, ``DerivationTechnique``, ...). The same names work for any other
 consumer of the report.
+
+Properties of your own metamodel
+--------------------------------
+
+The four keywords above are S-CORE's. A project with other link fields registers
+them once, before the tests are collected -- ``conftest.py`` is the place:
+
+.. code-block:: python
+
+   # conftest.py
+   from sphinxcontrib.test_reports.pytest_plugin import register_property
+
+   register_property("satisfies", "Satisfies", multi=True)
+
+``@add_test_properties(satisfies=["REQ_1", "REQ_2"])`` then writes
+``<property name="Satisfies" value="REQ_1, REQ_2"/>``, ready for
+``tr_property_link_types = {"Satisfies": "satisfies"}`` on the build side.
+Without ``multi=True`` the property takes a single value, like ``test_type``.
+The XML name doubles as keyword, so ``PartiallyVerifies=[...]`` is accepted too.
 
 Metadata known only at run time
 -------------------------------
@@ -96,7 +126,9 @@ of at the test function:
        ...  # the actual checks
 
 Call it before the first assertion, so a failing test still carries its
-metadata.
+metadata. Metadata without values -- a file with an empty metadata block --
+writes no properties and is not an error; ``file`` and ``line`` are applied
+regardless.
 
 Origin
 ------
