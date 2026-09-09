@@ -98,6 +98,19 @@ CORE_FIELDS: dict[str, dict[str, object]] = {
     },
 }
 
+#: Names a renameable field may not be given: the fixed-name fields of this
+#: package and the core fields every need has. Both writers set those on the
+#: same need, so a rename onto one of them makes the directives pass one
+#: keyword twice -- ``add_need`` fails with "multiple values for keyword
+#: argument" -- and the converter write one value over the other. ``status``,
+#: ``links``, ``collapse`` and ``style`` are core fields the directives set
+#: without the converter declaring them.
+RESERVED_NAMES: frozenset[str] = (
+    frozenset(FIELDS)
+    | frozenset(CORE_FIELDS)
+    | frozenset({"status", "links", "collapse", "style"})
+)
+
 #: JSON schema draft the block declares itself against, as sphinx-needs does.
 SCHEMA_DIALECT = "http://json-schema.org/draft-07/schema#"
 

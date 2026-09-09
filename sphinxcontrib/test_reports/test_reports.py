@@ -38,6 +38,7 @@ from sphinxcontrib.test_reports.exceptions import InvalidConfigurationError
 from sphinxcontrib.test_reports.fields import (
     FIELDS,
     RENAMEABLE_FIELDS,
+    RESERVED_NAMES,
     declaration,
 )
 from sphinxcontrib.test_reports.functions import tr_link
@@ -359,11 +360,13 @@ def tr_preparation(app: Sphinx, *args: object) -> None:
 
 
 def check_field_name_collisions(config: Config) -> None:
-    """Reject configurations where two field options name the same need field.
+    """Reject configurations where a field option names a field already taken.
 
     The report path and the test-source location are separate fields; if two
-    options resolve to one name, ``add_need`` receives the same keyword twice
-    and fails with a bare ``TypeError`` from inside a directive.
+    options resolve to one name, or one of them to a fixed field such as
+    ``case`` or ``result``, ``add_need`` receives the same keyword twice and
+    fails with a bare ``TypeError`` from inside a directive. The loader makes
+    the same check for the declarative file; this covers ``conf.py``.
     """
     options = {
         "tr_file_option": getattr(config, "tr_file_option", "file"),
@@ -372,6 +375,11 @@ def check_field_name_collisions(config: Config) -> None:
     }
 
     for name, value in options.items():
+        if value in RESERVED_NAMES:
+            raise InvalidConfigurationError(
+                f"{name} is set to '{value}', a field every test-case need has "
+                f"already; it must name a field of its own."
+            )
         clashing = [
             other
             for other, other_value in options.items()

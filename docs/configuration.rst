@@ -146,8 +146,11 @@ rename the report field instead:
    tr_source_file_option = "file"
    tr_source_line_option = "line"
 
-Each of the three options must name a different field; otherwise the build stops
-with a configuration error.
+Each of the three options must name a field of its own -- not one of the other
+two, and not a fixed field such as ``case`` or ``result`` -- or the build stops
+with a configuration error. For the :ref:`build needs command <cli>` to write
+the renamed fields as well, put the renames in ``ubproject.toml``
+(:ref:`tr_config_from_toml`): it cannot see ``conf.py``.
 
 The field is empty when the XML carries no ``file`` attribute. With pytest this
 is the norm: it emits ``file``/``line`` only with ``junit_family = xunit1`` (or
@@ -449,8 +452,8 @@ them all; the :ref:`build needs command <cli>` reads the three field-name keys
 (``file_option``, ``source_file_option``, ``source_line_option``) and
 ``extra_options`` as well, so the needs it writes have the shape of the needs
 the build creates and carry exactly the fields the build accepts -- and it
-refuses a file whose two path fields share a name, as the build does. A key
-carrying the
+refuses a file whose path fields share a name or take a fixed field's, as the
+build does. A key carrying the
 wrong type is an error -- that is the typo class this validation exists to
 catch. An *unknown* key is reported as a warning and ignored: the file is
 shared with tools on independent release cadences, so a key this version does

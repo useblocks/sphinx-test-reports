@@ -46,7 +46,14 @@ The three renameable fields carry the names the build's ``tr_file_option``,
 ``tr_source_file_option`` and ``tr_source_line_option`` select -- the converter
 reads them from the same ``[test_reports]`` section (:ref:`tr_config_from_toml`),
 so a project that spells its source location ``file``/``line`` gets a
-``needs.json`` that says so too.
+``needs.json`` that says so too. That section is the only place it can read
+them from: a rename made in ``conf.py`` alone is invisible to the converter,
+which then writes the default names -- ``needimport`` drops ``case_file`` and
+``case_line`` as unknown keys, and the report path lands in ``file``, the field
+such a project defines as the *source* file. Renames belong in
+``ubproject.toml``. None of the three may take the name of a fixed field
+(``case``, ``result``, ...); both consumers refuse such a configuration, since
+the field would be written twice.
 
 Every field is declared in the file, under ``versions.<version>.needs_schema``,
 the way Sphinx-Needs declares the fields of the ``needs.json`` a build writes:

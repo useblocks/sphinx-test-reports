@@ -38,6 +38,8 @@ import tomllib
 from pathlib import Path
 from typing import Callable, Mapping, NoReturn, Sequence
 
+from sphinxcontrib.test_reports.fields import RESERVED_NAMES
+
 #: Default file the configuration is read from. Looked up by walking up from
 #: the ``confdir`` (Sphinx) or the working directory (a converter); see
 #: :func:`find_project_config`. ``ubproject.toml`` is the convention shared
@@ -415,16 +417,24 @@ def field_names(section: Mapping[str, object]) -> dict[str, str]:
 
 
 def _check_field_name_collisions(section: Mapping[str, object], path: Path) -> None:
-    """The report-path and source-location fields must have distinct names.
+    """The report-path and source-location fields must have names of their own.
 
-    Two options naming one field would make ``add_need`` receive the same
-    keyword twice (a bare ``TypeError`` inside a directive) and the converter
-    write one value over the other. The build checks its ``conf.py`` values the
-    same way; this covers the declarative spelling for both consumers.
+    Two options naming one field, or one of them naming a fixed field such as
+    ``case`` or ``result``, would make ``add_need`` receive the same keyword
+    twice (a bare ``TypeError`` inside a directive) and the converter write one
+    value over the other. The build checks its ``conf.py`` values the same way;
+    this covers the declarative spelling for both consumers.
     """
     names = field_names(section)
     seen: dict[str, str] = {}
     for key, name in names.items():
+        if name in RESERVED_NAMES:
+            msg = (
+                f"{path}: [{SECTION}] {key} = {name!r}: {name!r} is a field every "
+                f"test-case need has already; the report path and the source "
+                f"location must live in fields of their own"
+            )
+            raise TomlConfigError(msg)
         if name in seen:
             msg = (
                 f"{path}: [{SECTION}] {seen[name]} and {key} both name the need "

@@ -230,6 +230,21 @@ class TestLoader:
         with pytest.raises(TomlConfigError, match="both name the need field 'file'"):
             load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
 
+    @pytest.mark.parametrize(
+        ("key", "name"),
+        [
+            ("file_option", "case"),
+            ("source_file_option", "result"),
+            ("source_line_option", "id"),
+        ],
+    )
+    def test_a_rename_onto_a_fixed_field_is_rejected(self, tmp_path, key, name):
+        # Every test-case need has these already: the directives would pass
+        # the keyword twice, the converter overwrite one value with the other.
+        _write(tmp_path, f"[test_reports]\n{key} = '{name}'\n")
+        with pytest.raises(TomlConfigError, match=f"{key} = '{name}'"):
+            load_project_config(tmp_path / DEFAULT_TOML_FILENAME)
+
     def test_need_type_and_case_type_agreeing_is_fine(self, tmp_path):
         _write(
             tmp_path,
