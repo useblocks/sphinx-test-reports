@@ -489,6 +489,27 @@ class TestDiagnostics:
 
         assert "junit_family" not in capsys.readouterr().err
 
+    def test_a_report_without_test_cases_warns(self, tmp_path, capsys):
+        # A pom.xml parses as one empty suite: a valid, empty needs.json with
+        # exit 0 is the one outcome a cached build action must never get
+        # silently.
+        pom = tmp_path / "pom.xml"
+        pom.write_text(
+            "<project><modelVersion>4.0.0</modelVersion></project>\n", encoding="utf-8"
+        )
+        code, data = _convert(tmp_path, "--no-config", xml=pom)
+        assert code == 0
+        assert data["versions"][data["current_version"]]["needs_amount"] == 0
+        message = capsys.readouterr().err
+        assert "pom.xml" in message and "no test cases" in message
+
+    def test_a_report_with_test_cases_does_not_get_the_empty_warning(
+        self, tmp_path, capsys
+    ):
+        code, _ = _convert(tmp_path, "--no-config")
+        assert code == 0
+        assert "no test cases" not in capsys.readouterr().err
+
 
 def test_the_cli_is_runnable_as_a_module():
     result = subprocess.run(

@@ -19,6 +19,7 @@ from sphinxcontrib.test_reports.projectconfig import (
 
 UTILS = Path(__file__).parent / "doc_test" / "utils"
 PYTEST_XML = str(UTILS / "pytest_data.xml")
+GTEST_XML = str(UTILS / "gtest_data.xml")  # carries <property> elements
 
 
 def _write(directory, toml_source, name=DEFAULT_TOML_FILENAME):
@@ -27,7 +28,9 @@ def _write(directory, toml_source, name=DEFAULT_TOML_FILENAME):
     return config
 
 
-def run_convert(tmp_path, arguments, toml=None, config_name=None, subdir=None):
+def run_convert(
+    tmp_path, arguments, toml=None, config_name=None, subdir=None, xml=PYTEST_XML
+):
     """Run ``build needs`` from *tmp_path* (or a subdirectory) and parse the output.
 
     A project-root marker bounds the upward search, so the outcome never depends
@@ -43,7 +46,7 @@ def run_convert(tmp_path, arguments, toml=None, config_name=None, subdir=None):
     previous = os.getcwd()
     os.chdir(workdir)
     try:
-        code = main(["build", "needs", PYTEST_XML, "-o", "needs.json", *arguments])
+        code = main(["build", "needs", xml, "-o", "needs.json", *arguments])
     finally:
         os.chdir(previous)
     payload = {}
@@ -217,7 +220,45 @@ class TestFileLookup:
 
 
 class TestVerbosity:
-    """A config-less run is quiet; ``-v`` makes a misplaced file diagnosable."""
+    """A config-less run is quiet, a discovered file is named, ``-v`` says more.
+
+    The file the search adopts may sit directories above the invocation and it
+    shapes the bytes written, so it is named on every run, as the build logs it
+    at INFO. ``-v`` adds where a fruitless search ended, so a misplaced file can
+    be placed right, and names a file given with ``--config``.
+    """
+
+    def test_a_discovered_file_is_named_without_verbose(self, tmp_path, capsys):
+        code, _ = run_convert(
+            tmp_path,
+            [],
+            toml='[test_reports.build.needs]\nproject = "p"\n',
+            subdir="build/testlogs",
+        )
+        assert code == 0
+        err = capsys.readouterr().err
+        assert "reading [test_reports] from" in err
+        assert str(tmp_path / DEFAULT_TOML_FILENAME) in err
+
+    def test_an_explicit_config_file_is_named_only_with_verbose(self, tmp_path, capsys):
+        # The user typed the path; repeating it is noise unless asked for.
+        toml = '[test_reports.build.needs]\nproject = "p"\n'
+        code, _ = run_convert(
+            tmp_path,
+            ["--config", "staging.toml"],
+            toml=toml,
+            config_name="staging.toml",
+        )
+        assert code == 0
+        assert "reading [test_reports]" not in capsys.readouterr().err
+        code, _ = run_convert(
+            tmp_path,
+            ["--config", "staging.toml", "-v"],
+            toml=toml,
+            config_name="staging.toml",
+        )
+        assert code == 0
+        assert "reading [test_reports] from staging.toml" in capsys.readouterr().err
 
     def test_a_configless_run_is_quiet_by_default(self, tmp_path, capsys):
         # Nothing about the search on stderr -- other diagnostics (here the
@@ -377,6 +418,36 @@ class TestDiagnostics:
         assert code == 2
         assert "the default need_type is 'testcase'" in capsys.readouterr().err
 
+    def test_need_type_flag_without_a_case_entry_is_checked_against_the_default(
+        self, tmp_path, capsys
+    ):
+        # A side that is not set is compared at its default, as in the loader:
+        # a file that leaves case alone configures the build with 'testcase',
+        # so a flag asking for anything else writes needs the build drops.
+        code, payload = run_convert(
+            tmp_path, ["--need-type", "check"], toml="[test_reports]\n"
+        )
+        assert code == 2
+        assert payload == {}
+        message = capsys.readouterr().err
+        assert "--need-type is 'check'" in message
+        assert "does not set case" in message
+        assert "'testcase'" in message
+
+    def test_need_type_flag_without_a_config_file_is_free(self, tmp_path):
+        # Without a file there is nothing to hold the flag against; the output
+        # depends on the arguments alone, as with --no-config.
+        code, payload = run_convert(tmp_path, ["--need-type", "check"])
+        assert code == 0
+        assert _first_need(payload)["type"] == "check"
+        code, payload = run_convert(
+            tmp_path,
+            ["--no-config", "--need-type", "check"],
+            toml="[test_reports]\n",
+        )
+        assert code == 0
+        assert _first_need(payload)["type"] == "check"
+
     def test_a_matching_need_type_flag_is_fine(self, tmp_path):
         code, payload = run_convert(
             tmp_path,
@@ -393,6 +464,66 @@ class TestDiagnostics:
         )
         assert code == 0
         assert _first_need(payload)["type"] == "check"
+
+
+class TestExtraOptionFlag:
+    """The flag adds to the section's list; a name the list lacks is reported.
+
+    A repeatable flag reads as additive, so it is one -- ``--no-config`` is the
+    way to leave the file's list out. The build registers exactly the section's
+    ``extra_options`` as fields, so a field exported under any other name is
+    dropped by ``needimport`` as an unknown key -- the flag may stand in for a
+    build configured elsewhere, but the mismatch must not be silent.
+    """
+
+    def test_the_flag_adds_to_the_section_s_list(self, tmp_path):
+        code, payload = run_convert(
+            tmp_path,
+            ["--extra-option", "Requirement"],
+            toml='[test_reports]\nextra_options = ["TestType"]\n',
+            xml=GTEST_XML,
+        )
+        assert code == 0
+        needs = payload["versions"][payload["current_version"]]["needs"]
+        assert all(
+            "TestType" in need and "Requirement" in need for need in needs.values()
+        )
+        declared = payload["versions"][payload["current_version"]]["needs_schema"]
+        assert {"TestType", "Requirement"} <= set(declared["properties"])
+
+    def test_a_name_outside_the_section_s_list_warns(self, tmp_path, capsys):
+        code, payload = run_convert(
+            tmp_path,
+            ["--extra-option", "Requirement"],
+            toml='[test_reports]\nextra_options = ["TestType"]\n',
+            xml=GTEST_XML,
+        )
+        assert code == 0
+        needs = payload["versions"][payload["current_version"]]["needs"]
+        assert all("Requirement" in need for need in needs.values())
+        err = capsys.readouterr().err
+        assert "--extra-option Requirement" in err
+        assert "extra_options" in err and DEFAULT_TOML_FILENAME in err
+        assert "needimport" in err
+
+    def test_a_name_from_the_section_s_list_is_quiet(self, tmp_path, capsys):
+        code, _ = run_convert(
+            tmp_path,
+            ["--extra-option", "TestType"],
+            toml='[test_reports]\nextra_options = ["TestType", "Requirement"]\n',
+            xml=GTEST_XML,
+        )
+        assert code == 0
+        assert "--extra-option" not in capsys.readouterr().err
+
+    def test_without_a_config_file_there_is_nothing_to_compare_against(
+        self, tmp_path, capsys
+    ):
+        code, _ = run_convert(
+            tmp_path, ["--extra-option", "Requirement"], xml=GTEST_XML
+        )
+        assert code == 0
+        assert "--extra-option" not in capsys.readouterr().err
 
 
 def test_every_conversion_key_has_a_builtin_default():

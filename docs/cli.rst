@@ -120,9 +120,12 @@ makes the build register the field and accept it, so an import never has to drop
 it as an unknown key -- or given with ``--extra-option NAME``. Properties named
 by neither are left out, and the command says which, once. A listed property is
 written for every case -- ``null`` where a case has no such property, as the
-build leaves a field a directive did not set -- so a schema can require it. To
-turn a property into a link field instead, map it -- the value is split on
-commas:
+build leaves a field a directive did not set -- so a schema can require it.
+``--extra-option`` adds to the section's list rather than replacing it
+(``--no-config`` leaves the file out); a name that list does not contain is
+reported, because the build registers exactly the listed fields and
+``needimport`` drops every other one. To turn a property into a link field
+instead, map it -- the value is split on commas:
 
 .. code-block:: bash
 
@@ -189,8 +192,10 @@ None of the settings above has to be spelled as a flag. The command reads the
 file the documentation build reads (see :ref:`tr_config_from_toml`), so the two
 consumers of a project never work from different descriptions of it. By default
 the file is searched for in the working directory and its parents, stopping at
-the project root (a directory holding ``.git`` or ``pyproject.toml``); an absent
-default file is not an error.
+the repository root (the directory holding ``.git``) or, outside a repository,
+at the directory holding ``pyproject.toml``. An absent default file is not an
+error. A found one is named on stderr: it may sit directories above the
+invocation, and the output depends on it.
 
 .. code-block:: toml
 
@@ -215,15 +220,15 @@ replaces the whole ``link_properties`` table. ``--config PATH`` reads a
 different file (used as-is, not searched for, and it must exist);
 ``--no-config`` ignores declarative configuration entirely, so the output
 depends only on the arguments given. A run without a file is quiet by default
--- most projects have none -- but ``-v`` says which file was read, or where the
-search ended and why, so a misplaced file can be placed right; the Sphinx build
-says the same at ``sphinx-build -v``.
+-- most projects have none -- but ``-v`` says where the search ended and why,
+so a misplaced file can be placed right, and names a ``--config`` file; the
+Sphinx build says the same at ``sphinx-build -v``.
 
 **Validation** follows the file's own policy: a known key with the wrong type
 stops the conversion with an error, an unknown key is reported on stderr and
 ignored. The whole ``[test_reports]`` section is validated, not only the
-``convert`` table, so the converter refuses exactly the files the build would
-refuse.
+``build.needs`` table, so the converter refuses exactly the files the build
+would refuse.
 
 ``need_type`` and the ``type`` of the build's ``case`` entry both name the need
 type of a test case, so they must agree: a ``needs.json`` written with one type
@@ -238,6 +243,15 @@ Reproducible output
 The written file is byte-stable: keys are sorted and no timestamp is recorded.
 Converting the same report twice produces identical bytes, so the output works as
 a cached build-action output and as diffable evidence.
+
+Empty reports
+-------------
+
+A report without a single test case adds no needs, and the command says so on
+stderr. A file that is not a test report at all -- a ``pom.xml``, a
+``coverage.xml`` given by mistake -- parses as one empty suite, so a valid,
+empty ``needs.json`` with exit code 0 would otherwise be the silent outcome of
+exactly the mistake a cached build action needs to hear about.
 
 Missing source locations
 ------------------------

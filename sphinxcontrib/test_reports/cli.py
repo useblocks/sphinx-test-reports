@@ -29,6 +29,7 @@ from sphinxcontrib.test_reports.needs_export import (
 )
 from sphinxcontrib.test_reports.projectconfig import (
     CONVERSION_KEYS,
+    DEFAULT_NEED_TYPE,
     DEFAULT_TOML_FILENAME,
     NEEDS_TABLE_PATH,
     SECTION,
@@ -122,7 +123,11 @@ def _build_parser() -> argparse.ArgumentParser:
     needs.add_argument(
         "--need-type",
         default=None,
-        help="Need type for each test case (default: testcase).",
+        help=(
+            f"Need type for each test case (default: {DEFAULT_NEED_TYPE}). Must "
+            f"agree with the type of case in [{SECTION}] when a config file "
+            "applies."
+        ),
     )
     needs.add_argument(
         "--tags",
@@ -149,10 +154,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="NAME",
         help=(
-            "Export the XML property NAME as a need field (repeatable). Default: "
-            f"the extra_options of [{SECTION}] -- the same list that makes the "
-            "build accept the field. Properties named by neither are reported "
-            "and left out."
+            "Export the XML property NAME as a need field (repeatable), in "
+            f"addition to the extra_options of [{SECTION}] -- the same list that "
+            "makes the build accept the field. A NAME that list lacks is "
+            "reported. Properties named by neither are reported and left out."
         ),
     )
     needs.add_argument(
@@ -175,9 +180,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help=(
-            "Say on stderr which declarative config file was used, or where "
-            "the search for one ended. Off by default: most runs have no file "
-            "and should stay quiet, but a misplaced one must be diagnosable."
+            "Say on stderr where the search for the declarative config file "
+            "ended when it found none, and name a --config file. Off by "
+            "default: most runs have no file and should stay quiet, but a "
+            "misplaced one must be diagnosable. A file the search did find is "
+            "always named -- it may sit directories above, and the output "
+            "depends on it."
         ),
     )
     config_source = needs.add_mutually_exclusive_group()
@@ -267,6 +275,24 @@ def _warn_about_absent_source_lines(
         )
 
 
+def _warn_about_empty_report(
+    path: Path, suites: Sequence[Mapping[str, object]]
+) -> None:
+    """A report without a single test case contributes nothing -- say so.
+
+    A file that is not a test report at all (a ``pom.xml``, a ``coverage.xml``)
+    parses as one empty suite, and a genuine report may have had every case
+    filtered out. Either way the artifact ends up with fewer needs than the
+    caller expects, and for a cached build output "0 needs" is the one outcome
+    that must never be silent.
+    """
+    if not any(True for _ in iter_cases(suites)):
+        _warn(
+            f"{path}: no test cases found, so it adds no needs. A file that is "
+            f"not a test report parses as an empty one."
+        )
+
+
 def _load_section(
     arguments: argparse.Namespace,
 ) -> "tuple[dict[str, object], Path | None, str | None]":
@@ -283,9 +309,12 @@ def _load_section(
     The default file is searched for upwards from the working directory, since
     it conventionally sits at the project root while the converter runs from
     wherever CI invoked it. That is also where the Sphinx side looks, so both
-    consumers read the same file. With ``--verbose`` the search reports where
-    it ended and which file was used -- the same posture as the Sphinx bridge,
-    which says the same at ``sphinx-build -v``.
+    consumers read the same file. A file the search finds is always named on
+    stderr: it may sit directories above the invocation, and the bytes written
+    depend on it, so a cached artifact has to be traceable to the file that
+    shaped it -- the Sphinx bridge logs the same at INFO on every build. With
+    ``--verbose`` a fruitless search also reports where it ended, and an
+    explicitly given file is named too.
     """
     if arguments.no_config:
         return {}, None, None
@@ -298,12 +327,13 @@ def _load_section(
         path = Path(arguments.config)
         if not path.is_file():
             return {}, None, f"error: no such config file: {path}"
+        verbose(f"reading [{SECTION}] from {path}")
     else:
         found = find_project_config(Path.cwd(), report=verbose)
         if found is None:
             return {}, None, None
         path = found
-    verbose(f"reading [{SECTION}] from {path}")
+        print(f"reading [{SECTION}] from {path}", file=sys.stderr)
 
     try:
         section = load_project_config(path, _warn) or {}
@@ -319,7 +349,7 @@ def _load_section(
 _DEFAULTS: "dict[str, object]" = {
     "project": "",
     "version": DEFAULT_VERSION,
-    "need_type": "testcase",
+    "need_type": DEFAULT_NEED_TYPE,
     "tags": "",
     "link_properties": None,
     "remote_url": "",
@@ -398,13 +428,33 @@ def _pair_requirement(sources: "dict[str, str]", path: "Path | None") -> str:
 
 
 def _extra_options(
-    arguments: argparse.Namespace, section: "dict[str, object]"
+    arguments: argparse.Namespace,
+    section: "dict[str, object]",
+    config_path: "Path | None",
 ) -> "list[str]":
-    """Properties exported as fields: the flag if given, else the section's."""
-    if arguments.extra_option is not None:
-        return list(arguments.extra_option)
-    names = section.get("extra_options", [])
-    return list(names) if isinstance(names, list) else []
+    """Properties exported as fields: the section's ``extra_options`` plus the flag's.
+
+    The flag adds to the file's list rather than replacing it: a repeatable
+    flag reads as additive, and ``--no-config`` is the way to leave the file
+    out. A flag name the section's list does not contain is exported all the
+    same -- the flag may stand in for a build configured elsewhere -- but
+    reported: the build registers exactly the section's list, so an import of
+    the produced file drops every other field as an unknown key.
+    """
+    configured = _texts(section.get("extra_options", []))
+    if arguments.extra_option is None:
+        return configured
+    added = [str(name) for name in arguments.extra_option]
+    names = list(dict.fromkeys([*configured, *added], True))
+    unlisted = [name for name in names if name not in configured]
+    if unlisted and config_path is not None:
+        _warn(
+            f"--extra-option {', '.join(unlisted)}: not in the extra_options of "
+            f"[{SECTION}] in {config_path}. The build registers only the fields "
+            f"listed there, so a needimport of the produced file drops these; "
+            f"list them in the file."
+        )
+    return names
 
 
 def _build_needs(arguments: argparse.Namespace) -> int:
@@ -417,20 +467,31 @@ def _build_needs(arguments: argparse.Namespace) -> int:
         arguments, dict(needs_settings(section) or {})
     )
 
-    # The loader already rejects a file whose build.needs.need_type disagrees with
-    # case's type. A --need-type flag (or the default) is not in the file, so
-    # the merged value has to be checked here as well, or the converter writes
-    # needs of a type the build does not register.
-    case_type = case_need_type(section)
-    if case_type is not None and settings["need_type"] != case_type:
-        print(
-            f"error: {_spell('need_type', sources)} is {settings['need_type']!r} "
-            f"but [{SECTION}] case's type is {case_type!r} in {config_path}. Both "
-            f"name the need type of a test case -- need_type for this converter, "
-            f"case for the Sphinx build -- so they must agree.",
-            file=sys.stderr,
-        )
-        return 2
+    # The loader already rejects a file whose build.needs.need_type disagrees
+    # with case's type. A --need-type flag (or the built-in default) is not in
+    # the file, so the merged value has to be checked here as well, or the
+    # converter writes needs of a type the build does not register. As in the
+    # loader, a side that is not set is compared at its default: a file that
+    # leaves case alone configures the build with the default type. Without a
+    # file the rule has nothing to hold against, and the output depends on
+    # the arguments alone.
+    if config_path is not None:
+        case_type = case_need_type(section)
+        if settings["need_type"] != (case_type or DEFAULT_NEED_TYPE):
+            build_side = (
+                f"[{SECTION}] case's type is {case_type!r}"
+                if case_type is not None
+                else f"[{SECTION}] does not set case, so the build's test-case "
+                f"type is the default {DEFAULT_NEED_TYPE!r},"
+            )
+            print(
+                f"error: {_spell('need_type', sources)} is "
+                f"{settings['need_type']!r} but {build_side} in {config_path}. "
+                f"Both name the need type of a test case -- need_type for this "
+                f"converter, case for the Sphinx build -- so they must agree.",
+                file=sys.stderr,
+            )
+            return 2
 
     try:
         link_properties = _parse_link_properties(settings["link_properties"])
@@ -470,6 +531,7 @@ def _build_needs(arguments: argparse.Namespace) -> int:
         except Exception as error:  # noqa: BLE001 - report, never traceback
             print(f"error: {path}: {error}", file=sys.stderr)
             return 1
+        _warn_about_empty_report(path, parsed)
         _warn_about_absent_source_lines(path, parsed)
         # The path as given, like the build records the path given to its
         # directives; it is a label for the report, not something resolved.
@@ -490,7 +552,7 @@ def _build_needs(arguments: argparse.Namespace) -> int:
             # from the same section the build reads, so an imported need has
             # the shape of a local one.
             fields=field_names(section),
-            extra_options=_extra_options(arguments, section),
+            extra_options=_extra_options(arguments, section, config_path),
             warn=_warn,
         )
     except ValueError as error:  # duplicate test cases across the inputs
