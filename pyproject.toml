@@ -114,10 +114,6 @@ exclude = [
   "^sphinxcontrib/test_reports/functions",
   "^sphinxcontrib/test_reports/jsonparser\\.py$",
   "^sphinxcontrib/test_reports/junitparser\\.py$",
-  # pytest's marker API is Any-typed (MarkDecorator.__call__ on a
-  # Callable[..., object], whose `...` is itself an Any), which
-  # disallow_any_expr rejects for every decorator expression.
-  "^sphinxcontrib/test_reports/pytest_plugin\\.py$",
 ]
 # Disallow dynamic typing
 disallow_any_unimported = true
@@ -133,6 +129,7 @@ disallow_untyped_defs = true
 # disallow_incomplete_defs = true
 # check_untyped_defs = true
 # disallow_untyped_decorators = true
+
 
 # # None and optional handling
 # no_implicit_optional = true
@@ -164,3 +161,16 @@ module = [
   "sphinxcontrib.test_reports.cli",
 ]
 disallow_any_expr = false
+
+# The pytest plugin decorates arbitrary test functions (Callable[..., object],
+# whose `...` is an Any) and reads pytest's Any-typed config API; everything
+# else stays strict. Both module names: `packages` above yields the full one,
+# a file passed on the command line loses the `sphinxcontrib` prefix because
+# that directory is a namespace package.
+[[tool.mypy.overrides]]
+module = [
+  "sphinxcontrib.test_reports.pytest_plugin",
+  "test_reports.pytest_plugin",
+]
+disallow_any_expr = false
+disallow_any_explicit = false
