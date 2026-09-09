@@ -36,11 +36,14 @@ error naming the affected IDs rather than writing a valid-looking file that has
 lost evidence.
 
 Each test case becomes one need shaped exactly like the need the build's
-``test-case`` directive creates for it: ``suite``, ``case``, ``case_name``,
-``case_parameter``, ``classname``, ``result`` and ``time``; the report path
-under ``file``; the test's source location under ``case_file`` and
-``case_line``; a one-line ``result_text``; and the full failure evidence (every
-``<failure>``/``<skipped>`` part plus captured output) in the need content.
+``test-case`` directive creates for it: titled with the case name; ``suite``,
+``case``, ``case_name``, ``case_parameter``, ``classname``, ``result`` (spelled
+as the build spells it -- ``passed``, ``failure``, ``error``, ``skipped``,
+``disabled`` -- so one filter matches imported and local cases alike) and
+``time``; the report path under ``file``; the test's source location under
+``case_file`` and ``case_line``; a one-line ``result_text``; and the full
+failure evidence (every ``<failure>``/``<skipped>`` part plus captured output)
+in the need content.
 
 The three renameable fields carry the names the build's ``tr_file_option``,
 ``tr_source_file_option`` and ``tr_source_line_option`` select -- the converter
@@ -115,8 +118,11 @@ An XML ``<property>`` becomes a need field under its own name when it is listed
 in the ``extra_options`` of the ``[test_reports]`` section -- the same list that
 makes the build register the field and accept it, so an import never has to drop
 it as an unknown key -- or given with ``--extra-option NAME``. Properties named
-by neither are left out, and the command says which, once. To turn a property
-into a link field instead, map it -- the value is split on commas:
+by neither are left out, and the command says which, once. A listed property is
+written for every case -- ``null`` where a case has no such property, as the
+build leaves a field a directive did not set -- so a schema can require it. To
+turn a property into a link field instead, map it -- the value is split on
+commas:
 
 .. code-block:: bash
 
@@ -137,8 +143,8 @@ and lists ``TestType`` and ``DerivationTechnique`` in ``extra_options``.
 
 A property whose name is already taken by a built-in field (``result``,
 ``file``, ``time``, ...) or by a mapped link field is not exported: the built-in
-value wins, and the command says so on stderr. Rename the property, or map it to
-a link field, to get it into the need.
+value wins, and the command says so on stderr, once. Rename the property, or map
+it to a link field, to get it into the need.
 
 Source links
 ------------

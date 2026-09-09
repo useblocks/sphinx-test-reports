@@ -157,7 +157,8 @@ class TestPrecedence:
         assert need["report_file"].endswith("pytest_data.xml")
         assert "file" in need and "line" in need
         assert "case_file" not in need
-        assert "more_info" not in need
+        # Listed, so the field is there -- null, as no case carries it.
+        assert need["more_info"] is None
 
 
 class TestFileLookup:

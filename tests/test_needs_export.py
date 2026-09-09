@@ -63,21 +63,52 @@ class TestDuplicateCases:
 
 
 class TestPropertyCollisions:
-    def test_a_property_named_like_a_builtin_field_warns_and_is_dropped(self):
-        reported = []
+    def test_a_property_named_like_a_builtin_field_is_dropped_and_collected(self):
+        collisions = set()
         need = build_need(
             "r.xml",
             "s",
             _case(properties={"result": "tampered", "owner": "me"}),
             extra_options=("result", "owner"),
-            warn=reported.append,
+            collisions=collisions,
         )
         assert need["result"] != "tampered"
         assert need["owner"] == "me"
-        assert len(reported) == 1
-        assert "'result'" in reported[0]
+        assert collisions == {"result"}
 
-    def test_without_a_reporter_the_property_is_still_dropped(self):
+    def test_a_listed_name_no_case_carries_is_not_a_collision(self):
+        collisions = set()
+        build_need(
+            "r.xml", "s", _case(), extra_options=("result",), collisions=collisions
+        )
+        assert collisions == set()
+
+    def test_collisions_are_reported_once_per_run(self):
+        # Every other diagnostic fires once per run; so does this one, however
+        # many cases carry the property.
+        reported = []
+        reports = [
+            (
+                "a.xml",
+                [
+                    {
+                        "name": "s",
+                        "testcases": [
+                            _case("t1", properties={"result": "x"}),
+                            _case("t2", properties={"result": "y", "time": "z"}),
+                        ],
+                    }
+                ],
+            ),
+        ]
+        build_needs_file(
+            reports, extra_options=("result", "time"), warn=reported.append
+        )
+        assert len(reported) == 1
+        assert "result" in reported[0] and "time" in reported[0]
+        assert "taken by built-in or link fields" in reported[0]
+
+    def test_without_a_collector_the_property_is_still_dropped(self):
         # `file` is the report-path field by default, so a property of that
         # name collides with it and the report path wins.
         need = build_need(
@@ -122,9 +153,9 @@ class TestPropertyGate:
         assert need["TestType"] == "unit"
         assert "Owner" not in need
 
-    def test_left_out_properties_are_reported_once(self):
-        reported = []
-        reports = [
+    @staticmethod
+    def _two_cases_with_properties():
+        return [
             (
                 "a.xml",
                 [
@@ -138,10 +169,31 @@ class TestPropertyGate:
                 ],
             ),
         ]
-        build_needs_file(reports, extra_options=("Kind",), warn=reported.append)
+
+    def test_left_out_properties_are_reported_once_for_all_names(self):
+        # One report naming both -- not one per name, not one per case.
+        reported = []
+        build_needs_file(self._two_cases_with_properties(), warn=reported.append)
+        assert len(reported) == 1
+        assert "Owner" in reported[0] and "Kind" in reported[0]
+        assert "extra_options" in reported[0]
+
+    def test_exported_properties_are_not_reported(self):
+        reported = []
+        build_needs_file(
+            self._two_cases_with_properties(),
+            extra_options=("Kind",),
+            warn=reported.append,
+        )
         assert len(reported) == 1
         assert "Owner" in reported[0] and "Kind" not in reported[0]
-        assert "extra_options" in reported[0]
+
+    def test_an_exported_property_absent_from_a_case_is_null(self):
+        # The field is always there, so a schema can require it; null is what
+        # the build leaves in a registered field a directive did not set.
+        need = build_need("r.xml", "s", _case(), extra_options=("TestType",))
+        assert "TestType" in need
+        assert need["TestType"] is None
 
 
 class TestRemoteUrls:
@@ -315,9 +367,10 @@ class TestDeclaredSchema:
 
     def test_an_extra_option_is_declared_even_when_no_case_carries_it(self):
         # The option is what the build registers, so the file says the field
-        # exists; a case without the property simply has no value for it.
+        # exists; a case without the property carries it as null -- the type
+        # the declaration allows for exactly that.
         schema, needs = self._declared(extra_options=("TestType",))
-        assert "TestType" not in next(iter(needs.values()))
+        assert next(iter(needs.values()))["TestType"] is None
         assert schema["properties"]["TestType"]["type"] == ["string", "null"]
 
     def test_the_counts_of_file_and_suite_needs_are_not_declared(self):

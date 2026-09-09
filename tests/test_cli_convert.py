@@ -139,12 +139,14 @@ class TestNeedContent:
         # `file` is the report path, as in a locally created test-case need.
         assert need["file"] == str(GTEST_XML)
 
-    def test_type_and_title_are_score_shaped(self, tmp_path):
+    def test_type_and_title_match_the_directive_s(self, tmp_path):
+        # The directive titles a case need with the case name; a needtable
+        # title column must not tell an imported case from a built one.
         _, data = _convert(tmp_path)
 
         need = _needs(data)["testcase__MathTest__Addition_hcuyy"]
         assert need["type"] == "testcase"
-        assert need["title"] == "MathTest__Addition"
+        assert need["title"] == "Addition"
 
     def test_result_vocabulary_includes_disabled(self, tmp_path):
         _, data = _convert(tmp_path)
@@ -180,6 +182,33 @@ class TestNeedContent:
         assert "properties not exported" in message
         assert "PartiallyVerifies" in message
         assert "extra_options" in message
+
+    def test_unexported_properties_are_reported_once_for_all_names(
+        self, tmp_path, capsys
+    ):
+        # One line naming every left-out property -- not one line per name,
+        # and not one per case that carries it.
+        code, _ = _convert(tmp_path, "--no-config")
+        assert code == 0
+        lines = [
+            line
+            for line in capsys.readouterr().err.splitlines()
+            if "properties not exported" in line
+        ]
+        assert len(lines) == 1
+        assert "PartiallyVerifies" in lines[0] and "TestType" in lines[0]
+
+    def test_an_exported_property_is_present_on_every_case(self, tmp_path):
+        # Null where the case has no such property, as the build leaves a
+        # registered field a directive did not set -- so one schema can
+        # require the field of imported and locally created needs alike.
+        _, data = _convert(tmp_path, "--no-config", "--extra-option", "TestType")
+        needs = _needs(data)
+        assert needs["testcase__MathTest__Addition_hcuyy"]["TestType"] == (
+            "requirements-based"
+        )
+        assert needs["testcase__MathTest__Subtraction_srmht"]["TestType"] is None
+        assert all("TestType" in need for need in needs.values())
 
     def test_unnamed_properties_are_left_out_quietly_when_none_exist(
         self, tmp_path, capsys
@@ -514,19 +543,19 @@ def test_url_synthesis_needs_both_parts(tmp_path, flag):
 
 
 class TestResultVocabulary:
-    """The export uses the migration-target vocabulary, not the parser's.
+    """The export uses the parser's vocabulary, which is the build's.
 
-    The parser reports ``failure`` and must keep doing so -- it is a documented
-    need field value and a CSS class (``tr_failure``). The exported needs.json
-    is a new surface with no such obligation, and its consumers' metamodels
-    (S-CORE's included) spell it ``failed``.
+    ``failure`` is a documented need field value and a CSS class
+    (``tr_failure``), and the shipped report template filters on it. A project
+    that mixes imported and locally created test-case needs filters both with
+    one expression only if the two writers spell the result alike.
     """
 
-    def test_failure_is_exported_as_failed(self, tmp_path):
+    def test_failure_is_exported_as_the_build_spells_it(self, tmp_path):
         _, data = _convert(tmp_path)
 
         assert (
-            _needs(data)["testcase__MathTest__Subtraction_srmht"]["result"] == "failed"
+            _needs(data)["testcase__MathTest__Subtraction_srmht"]["result"] == "failure"
         )
 
     @pytest.mark.parametrize(

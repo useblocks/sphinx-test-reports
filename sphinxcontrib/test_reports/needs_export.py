@@ -6,8 +6,10 @@ only imports the result.
 Three rules shape the output:
 
 * **Every field is always present.** Absent XML attributes become empty values
-  rather than missing keys, so a schema can simply require a field and a
-  consumer never has to distinguish "unset" from "absent".
+  rather than missing keys, and an exported property a case does not carry is
+  ``null`` -- the value the build leaves in a registered field a directive did
+  not set -- so a schema can simply require a field and a consumer never has
+  to distinguish "unset" from "absent".
 * **Every field is declared in the file**, in the ``needs_schema`` sphinx-needs
   also writes into the files it produces itself, so the type of a field is
   readable from the artifact instead of only from a Sphinx build with this
@@ -25,15 +27,15 @@ from typing import Callable, Iterable, Iterator, Mapping, Sequence, Union
 from sphinxcontrib.test_reports.fields import case_needs_schema
 from sphinxcontrib.test_reports.identity import (
     UNKNOWN,
-    case_display_name,
     deterministic_case_id,
     split_case_name,
 )
 from sphinxcontrib.test_reports.projectconfig import DEFAULT_FIELD_NAMES
 from sphinxcontrib.test_reports.remote import DEFAULT_URL_PATTERN, source_url
 
-#: A need field value as it appears in needs.json.
-FieldValue = Union[str, list[str]]
+#: A need field value as it appears in needs.json. ``None`` is the value of an
+#: exported property the case does not carry, as the build leaves it.
+FieldValue = Union[str, list[str], None]
 NeedItem = dict[str, FieldValue]
 
 #: A parsed report: the path it was read from, and its top-level suites. The
@@ -47,12 +49,6 @@ DEFAULT_VERSION = "1.0"
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 _WHITESPACE = re.compile(r"\s+")
-
-#: The parser keeps the historical spelling ``failure`` -- it is a documented
-#: need field value and a CSS class. Exported data has no such obligation and
-#: uses the migration-target vocabulary (passed|failed|error|skipped|disabled),
-#: which is also what S-CORE's metamodel spells.
-RESULT_NAMES = {"failure": "failed"}
 
 
 def flatten_message(message: str) -> str:
@@ -172,32 +168,37 @@ def build_need(
     url_pattern: str = DEFAULT_URL_PATTERN,
     fields: Mapping[str, str] | None = None,
     extra_options: Sequence[str] = (),
-    warn: Callable[[str], None] | None = None,
+    collisions: set[str] | None = None,
 ) -> NeedItem:
     """One test case as a need item, shaped like the build's ``test-case``.
 
     The field names are those of the directives -- ``suite``/``case``/
     ``case_name``/``case_parameter``/``classname``/``result``/``time`` plus the
     renameable report-path and source-location fields in *fields* (see
-    :data:`DEFAULT_FIELD_NAMES`) -- so that a need imported from the produced
-    ``needs.json`` and one created locally from the same report are
-    indistinguishable to a schema, a filter or a ``needtable``.
+    :data:`DEFAULT_FIELD_NAMES`) -- and so are the values: the title is the
+    case name and ``result`` keeps the parser's spelling (``failure``, which is
+    also a documented field value and the ``tr_failure`` CSS class), so that a
+    need imported from the produced ``needs.json`` and one created locally from
+    the same report are indistinguishable to a schema, a filter or a
+    ``needtable``.
 
     XML properties become fields under their own names only when listed in
     *extra_options* -- the same list that makes the build register them as need
     options and accept them -- so an import never has to drop them as unknown
-    keys. A property mapped by *link_properties* becomes a link field
-    regardless. Everything else is left out; :func:`build_needs_file` reports
-    what was left out, once.
+    keys. Every listed name is written, ``None`` when the case has no such
+    property, so the field is there to be required. A property mapped by
+    *link_properties* becomes a link field regardless. Everything else is left
+    out; :func:`build_needs_file` reports what was left out, once.
 
-    *warn* is called for a property that cannot become a field because its
-    name is already taken by a built-in or link field. The property is dropped
-    -- silently overwriting ``result`` or the report path would be worse -- but
-    silently dropping it is not acceptable either.
+    A listed property whose name is already taken by a built-in or link field
+    cannot become a field: the built-in value wins -- silently overwriting
+    ``result`` or the report path would be worse -- but silently dropping the
+    property is not acceptable either, so its name is added to *collisions*
+    when the case carries it, for the caller to report once.
     """
     link_properties = link_properties or {}
     names = {**DEFAULT_FIELD_NAMES, **(fields or {})}
-    exported = set(extra_options)
+    exported = list(dict.fromkeys(extra_options, True))  # deduplicated, in order
 
     classname = optional(case.get("classname"), UNKNOWN)
     name = optional(case.get("name"), UNKNOWN)
@@ -214,7 +215,7 @@ def build_need(
             classname=classname, name=name, file=source_file, prefix=need_type
         ),
         "type": need_type,
-        "title": case_display_name(classname, name),
+        "title": name,
         # ``content``, as sphinx-needs >= 4 writes and reads it. Older versions
         # read the need text from ``description`` only, and current ones flag a
         # file carrying both -- so importing a converted file needs >= 4.
@@ -229,9 +230,7 @@ def build_need(
         names["source_file_option"]: source_file,
         names["source_line_option"]: source_line,
         "time": time,
-        "result": RESULT_NAMES.get(
-            str(case.get("result", "")), str(case.get("result", ""))
-        ),
+        "result": str(case.get("result", "")),
         "result_text": _first_message(case),
         # The same URL twice on purpose: external_url drives the external-needs
         # rendering, while a plain field stays usable for needs imported as
@@ -249,17 +248,17 @@ def build_need(
         raw = str(properties.get(property_name, ""))
         need[link_field] = [item.strip() for item in raw.split(",") if item.strip()]
 
-    for property_name, value in properties.items():
-        if property_name in link_properties or property_name not in exported:
-            continue
+    # Exported properties are emitted for every case too; absent, the field is
+    # null, as the build leaves a registered field a directive did not set.
+    for property_name in exported:
+        if property_name in link_properties:
+            continue  # the link field carries it
         if property_name in need:
-            if warn is not None:
-                warn(
-                    f"{need['id']}: property {property_name!r} is not exported, "
-                    f"its name is taken by a built-in or link field"
-                )
+            if property_name in properties and collisions is not None:
+                collisions.add(property_name)
             continue
-        need[property_name] = str(value)
+        value = properties.get(property_name)
+        need[property_name] = None if value is None else str(value)
 
     return need
 
@@ -287,7 +286,8 @@ def build_needs_file(
     Properties that are neither in *extra_options* nor mapped by
     *link_properties* are not exported (see :func:`build_need`); their names are
     reported through *warn* once, with the key to add them to, so the omission
-    is a decision the user can see rather than a silent one.
+    is a decision the user can see rather than a silent one. So are, once, the
+    names of listed properties that a built-in or link field already owns.
 
     :raises ValueError: If a test case occurs more than once across *reports*.
         Its ID is derived from where the test is, so a repeat means the same
@@ -298,6 +298,7 @@ def build_needs_file(
     needs: dict[str, NeedItem] = {}
     duplicates: set[str] = set()
     left_out: set[str] = set()
+    collisions: set[str] = set()
     known = set(extra_options) | set(link_properties or {})
     for report_path, suites in reports:
         for suite_name, case in iter_cases(suites):
@@ -316,7 +317,7 @@ def build_needs_file(
                 url_pattern=url_pattern,
                 fields=fields,
                 extra_options=extra_options,
-                warn=warn,
+                collisions=collisions,
             )
             need_id = str(need["id"])
             if need_id in needs:
@@ -335,6 +336,13 @@ def build_needs_file(
             f"properties listed in extra_options become need fields (the build "
             f"accepts exactly those); list them there, or map them to a link "
             f"field with link_properties."
+        )
+    if collisions and warn is not None:
+        warn(
+            f"properties not exported, their names are taken by built-in or "
+            f"link fields: {', '.join(sorted(collisions))}. The built-in value "
+            f"wins; rename the property, or map it to a link field with "
+            f"link_properties."
         )
 
     return {
