@@ -145,9 +145,11 @@ because half the metadata cannot produce a URL:
        --remote-url git@github.com:org/repo.git \
        --commit "$(git rev-parse HEAD)"
 
-Git remotes are accepted in ``scp`` form and normalised. Without this metadata --
-as in a hermetic sandbox -- the URL fields stay empty rather than carrying a
-placeholder that looks real and then 404s.
+Git remotes are accepted in ``scp`` form and normalised, and credentials are
+stripped -- ``https://gitlab-ci-token:TOKEN@gitlab.example/org/repo.git`` is
+what GitLab's ``CI_REPOSITORY_URL`` looks like, and the base is written into
+every need. Without this metadata -- as in a hermetic sandbox -- the URL fields
+stay empty rather than carrying a placeholder that looks real and then 404s.
 
 Forges that lay out blob URLs differently are handled with ``--url-pattern``,
 which accepts the placeholders ``{base}``, ``{commit}``, ``{file}`` and
@@ -159,9 +161,10 @@ which accepts the placeholders ``{base}``, ``{commit}``, ``{file}`` and
        --remote-url https://gitlab.com/org/repo --commit abc123 \
        --url-pattern "{base}/-/blob/{commit}/{file}#L{line}"
 
-The template is checked before any report is read: an unknown placeholder or an
-unbalanced brace is a configuration error naming the problem, not a traceback on
-the first case that happens to carry a file.
+The template is checked before any report is read: an unknown placeholder, an
+attribute lookup such as ``{base.x}`` or an unbalanced brace is a configuration
+error naming the problem, not a traceback on the first case that happens to
+carry a file.
 
 .. _cli-declarative:
 

@@ -158,6 +158,17 @@ class TestRemoteUrls:
             ("gitlab.example.com/org/repo", "https://gitlab.example.com/org/repo"),
             ("git://github.com/org/repo.git", "https://github.com/org/repo"),
             ("file:///srv/git/repo.git", "file:///srv/git/repo.git"),  # passed through
+            # GitLab's CI_REPOSITORY_URL: the job token must not reach the file.
+            (
+                "https://gitlab-ci-token:glcbt-xyz@gitlab.example.com/org/repo.git",
+                "https://gitlab.example.com/org/repo",
+            ),
+            ("https://user:pass@github.com/org/repo/", "https://github.com/org/repo"),
+            ("token@github.com:org/repo.git", "https://github.com/org/repo"),
+            # Local paths are passed through -- a drive letter is not a host.
+            ("C:\\repos\\repo", "C:\\repos\\repo"),
+            ("C:/repos/repo", "C:/repos/repo"),
+            ("/srv/git/repo", "/srv/git/repo"),
         ],
     )
     def test_remotes_normalise_to_a_browsable_base(self, remote, base):
@@ -195,12 +206,30 @@ class TestUrlPatternCheck:
         assert "{commit}" in problem  # the allowed names are listed
 
     @pytest.mark.parametrize(
-        "pattern", ["{base/blob/{commit}/{file}", "{}/{file}", "{base}}"]
+        "pattern",
+        [
+            "{base/blob/{commit}/{file}",
+            "{}/{file}",
+            "{0}/{file}",
+            "{base}}",
+            "{line:zz}",
+        ],
     )
     def test_a_malformed_template_is_rejected(self, pattern):
         problem = check_url_pattern(pattern)
         assert problem is not None
         assert "malformed" in problem
+
+    @pytest.mark.parametrize(
+        "pattern", ["{base.__class__}/{file}", "{base[0]}/{file}", "{base.anything}"]
+    )
+    def test_an_attribute_or_index_lookup_is_an_unknown_placeholder(self, pattern):
+        # str.format would resolve these on the substituted value -- and fail
+        # with an AttributeError, not a KeyError, on the first case.
+        problem = check_url_pattern(pattern)
+        assert problem is not None
+        assert "unknown placeholder {base" in problem
+        assert "{commit}" in problem
 
 
 class TestDeclaredSchema:

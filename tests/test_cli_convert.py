@@ -274,6 +274,34 @@ class TestRemoteUrls:
             "https://gitlab.com/org/repo/-/blob/abc123/src/math_test.cc#L12"
         )
 
+    def test_credentials_in_the_remote_url_are_not_written(self, tmp_path):
+        # GitLab's CI_REPOSITORY_URL embeds the job token; the base lands in
+        # every need of a cached artifact and, imported, in published HTML.
+        from sphinxcontrib.test_reports.cli import main
+
+        output = tmp_path / "needs.json"
+        code = main(
+            [
+                "build",
+                "needs",
+                str(GTEST_XML),
+                "--output",
+                str(output),
+                "--no-config",
+                "--remote-url",
+                "https://gitlab-ci-token:glcbt-secret@gitlab.example.com/org/repo.git",
+                "--commit",
+                "abc123",
+            ]
+        )
+        assert code == 0
+        text = output.read_text(encoding="utf-8")
+        assert "glcbt-secret" not in text and "gitlab-ci-token" not in text
+        need = _needs(json.loads(text))["testcase__MathTest__Addition_hcuyy"]
+        assert need["remote_url"] == (
+            "https://gitlab.example.com/org/repo/blob/abc123/src/math_test.cc#L12"
+        )
+
     def test_without_repo_metadata_the_url_fields_are_empty(self, tmp_path):
         """A hermetic sandbox has no git remote; that must not drop the need."""
         _, data = _convert(tmp_path)
@@ -309,6 +337,40 @@ class TestUrlPatternErrors:
         )
         assert code == 2
         assert "malformed" in capsys.readouterr().err
+
+    def test_an_attribute_lookup_is_an_error_not_a_traceback(self, tmp_path, capsys):
+        # str.format resolves {base.__class__}; only KeyError was caught.
+        code, data = _convert(
+            tmp_path,
+            "--no-config",
+            "--remote-url",
+            "https://github.com/o/r",
+            "--commit",
+            "abc",
+            "--url-pattern",
+            "{base.__class__}/{file}",
+        )
+        assert code == 2
+        assert data is None
+        message = capsys.readouterr().err
+        assert "unknown placeholder {base.__class__}" in message
+        assert "Traceback" not in message
+
+    def test_the_pattern_is_checked_before_any_report_is_read(self, tmp_path, capsys):
+        # A missing report and a bad pattern: the pattern error wins, because
+        # the template is checked before the first file is opened.
+        code, data = _convert(
+            tmp_path,
+            "--no-config",
+            "--url-pattern",
+            "{base}/blob/{ref}/{file}",
+            xml=tmp_path / "does-not-exist.xml",
+        )
+        assert code == 2
+        assert data is None
+        message = capsys.readouterr().err
+        assert "{ref}" in message
+        assert "no such file" not in message
 
 
 class TestMultipleInputs:
