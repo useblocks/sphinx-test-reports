@@ -68,7 +68,10 @@ is declared per property, not guessed from the value:
   does not know is a ``TypeError``: register the keyword first, see below.
 
 Empty values are not written, and a decorator that would write nothing is an
-error.
+error. The decorator also goes on a class, and decorators stack: a
+classification on the class and the requirement links on each method are merged
+into the method's ``<properties>``, the decorator closest to the function
+winning where two set the same property.
 
 The property names are the ones S-CORE's metamodel spells. On the build side
 they arrive through the directives' property handling: ``tr_property_link_types``

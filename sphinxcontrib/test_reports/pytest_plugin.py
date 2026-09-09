@@ -324,15 +324,25 @@ def _test_reports_xml_shape(
         # from 1.
         record_xml_attribute("line", str(line_number + 1))
 
-    marker: pytest.Mark | None = node.get_closest_marker(MARKER)
-    if marker is None:
-        return
-    arguments: tuple[object, ...] = marker.args
-    if not arguments or not isinstance(arguments[0], Mapping):
-        raise pytest.UsageError(
-            f"marker '{MARKER}' on {node.name} carries no property mapping; "
-            "attach it with add_test_properties(...)"
-        )
-    properties: Mapping[object, object] = arguments[0]
-    for name, value in properties.items():
-        record_property(str(name), str(value))
+    for name, value in _marked_properties(node).items():
+        record_property(name, value)
+
+
+def _marked_properties(node: pytest.Item) -> dict[str, str]:
+    """The properties of every ``test_properties`` marker on *node*, merged.
+
+    A marker on the class or the module counts as much as one on the function;
+    where two set the same property, the one closest to the function wins.
+    """
+    merged: dict[str, str] = {}
+    for marker in node.iter_markers(MARKER):  # closest first
+        arguments: tuple[object, ...] = marker.args
+        if not arguments or not isinstance(arguments[0], Mapping):
+            raise pytest.UsageError(
+                f"marker '{MARKER}' on {node.name} carries no property mapping; "
+                "attach it with add_test_properties(...)"
+            )
+        properties: Mapping[object, object] = arguments[0]
+        for name, value in properties.items():
+            merged.setdefault(str(name), str(value))
+    return merged

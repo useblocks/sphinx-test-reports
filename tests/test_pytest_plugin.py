@@ -231,3 +231,50 @@ class TestRuntimeMetadata:
             line=7,
         )
         assert attributes == {"file": "specs/a.rst", "line": "7"}
+
+
+STACKED = """
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+
+@add_test_properties(test_type="requirements-based", Owner="team-a")
+class TestThing:
+    @add_test_properties(partially_verifies=["REQ_1"])
+    def test_one(self):
+        assert True
+
+    @add_test_properties(partially_verifies=["REQ_2"], Owner="team-b")
+    def test_two(self):
+        assert True
+
+
+@add_test_properties(fully_verifies=["REQ_3"])
+@add_test_properties(test_type="interface-test")
+def test_stacked():
+    assert True
+"""
+
+
+class TestMarkerMerge:
+    def test_class_and_method_markers_are_merged(self, pytester):
+        # A classification on the class and links on each method is the natural
+        # way to use the decorator; get_closest_marker kept only the innermost.
+        result, root = _run(pytester, STACKED)
+        result.assert_outcomes(passed=3)
+        cases = _cases(root)
+        assert _properties(cases["test_one"]) == {
+            "PartiallyVerifies": "REQ_1",
+            "TestType": "requirements-based",
+            "Owner": "team-a",
+        }
+
+    def test_the_innermost_marker_wins_per_key(self, pytester):
+        _, root = _run(pytester, STACKED)
+        assert _properties(_cases(root)["test_two"])["Owner"] == "team-b"
+
+    def test_stacked_decorators_on_a_function_are_merged(self, pytester):
+        _, root = _run(pytester, STACKED)
+        assert _properties(_cases(root)["test_stacked"]) == {
+            "FullyVerifies": "REQ_3",
+            "TestType": "interface-test",
+        }
