@@ -88,17 +88,32 @@ classification on the class and the requirement links on each method are merged
 into the method's ``<properties>``, the decorator closest to the function
 winning where two set the same property.
 
-The property names are the ones S-CORE's metamodel spells. On the build side
-they arrive through the directives' property handling: ``tr_property_link_types``
-turns a comma-separated property into a link field --
+The property names are the ones S-CORE's metamodel spells, and the values of
+``test_type`` and ``derivation_technique`` are the identifiers of its
+verification methods and derivation techniques (``TEST_TYPES`` and
+``DERIVATION_TECHNIQUES`` in the plugin module list them, following the
+`verification concept <https://eclipse-score.github.io/process_description/main/process_areas/verification/verification_concept.html#verification-concept-types-methods>`_).
+They are documented, not enforced: a project with a different metamodel writes
+its own values.
+
+On the build side the properties arrive through the directives' property
+handling: ``tr_property_link_types`` turns a comma-separated property into a
+link field, and the link field has to exist as a sphinx-needs link type --
 
 .. code-block:: python
 
+   # conf.py
+   needs_extra_links = [
+       {"option": "partially_verifies", "incoming": "partially verified by", "outgoing": "partially verifies"},
+       {"option": "fully_verifies", "incoming": "fully verified by", "outgoing": "fully verifies"},
+   ]
    tr_property_link_types = {"PartiallyVerifies": "partially_verifies", "FullyVerifies": "fully_verifies"}
 
 -- and ``tr_extra_options`` lists the properties that become plain fields
-(``TestType``, ``DerivationTechnique``, ...). The same names work for any other
-consumer of the report.
+(``TestType``, ``DerivationTechnique``, ...), each of which needs its
+``needs_extra_options`` entry in turn. A link field missing from
+``needs_extra_links`` fails the build on the first test case that carries the
+property. The same names work for any other consumer of the report.
 
 Properties of your own metamodel
 --------------------------------

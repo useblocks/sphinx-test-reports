@@ -46,13 +46,24 @@ FULLY_VERIFIES = "FullyVerifies"
 TEST_TYPE = "TestType"
 DERIVATION_TECHNIQUE = "DerivationTechnique"
 
-#: The vocabularies S-CORE uses. Documented, not enforced: a project with a
-#: different metamodel is free to write other values.
+#: The vocabularies of S-CORE's verification concept ("Verification Methods"
+#: in its process description): the identifiers of the verification methods,
+#: for ``TestType``, and of the derivation techniques, for
+#: ``DerivationTechnique``. Documented, not enforced -- S-CORE's own metamodel
+#: accepts any string for both fields, and a project with a different metamodel
+#: is free to write other values.
 TEST_TYPES = (
+    "control-flow-analysis",
+    "data-flow-analysis",
     "fault-injection",
+    "inspection",
     "interface-test",
     "requirements-based",
     "resource-usage",
+    "static-code-analysis",
+    "structural-statement-coverage",
+    "structural-branch-coverage",
+    "walkthrough",
 )
 DERIVATION_TECHNIQUES = (
     "requirements-analysis",
