@@ -101,8 +101,9 @@ since. Two things a build has to allow for. The IDs are lowercase
 sphinx-needs' default ``needs_id_regex`` accepts capitals only -- widen it, e.g.
 ``needs_id_regex = "^[A-Za-z0-9_]{5,}"``, or every import is refused (see also
 ``tr_deterministic_case_ids`` in :ref:`configuration`). And a link field
-created with ``--link-property`` has to exist as a link type
-(``needs_extra_links``), as for any need. The plain fields the converter adds
+created with ``--link-property`` has to exist as a link type (``needs_links``;
+``needs_extra_links`` before sphinx-needs 6.3), as for any need. The plain
+fields the converter adds
 beyond the directive's (``result_text``, ``remote_url``) are registered by the
 extension, so ``needimport`` keeps them.
 

@@ -25,8 +25,13 @@ from typing import Iterable, Mapping
 FIELDS: dict[str, tuple[str, str]] = {
     "suite": ("string", "Test suite name"),
     "case": ("string", "Test case name"),
-    "case_name": ("string", "Test case display name"),
-    "case_parameter": ("string", "Test case parameter"),
+    # pytest spells a parameterised case ``name[param]``; the two halves are
+    # split apart so a filter can address either.
+    "case_name": ("string", "Test case name without its parameter"),
+    "case_parameter": (
+        "string",
+        "Parameter of a parameterised test case ('a-b' for pytest's test_x[a-b])",
+    ),
     "classname": ("string", "Test class name"),
     # A string, not a number, because that is what the directives have always
     # written and what a filter, a needtable and a schema in the field consume.

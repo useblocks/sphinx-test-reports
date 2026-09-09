@@ -40,8 +40,9 @@ _PARAMETERISED = re.compile(r"^(?P<name>[^\[]+)($|\[(?P<param>.*)?\])")
 
 
 def split_case_name(name: str) -> tuple[str, str]:
-    """``("test_x", "a-b")`` for ``"test_x[a-b]"``; the parameter is ``""``
-    when the name carries none.
+    """``("test_x", "a-b")`` for ``"test_x[a-b]"``, ``("test_x", "")`` for
+    ``"test_x"``: the name is always there, the parameter only when pytest
+    spelled one.
 
     One definition for the build's directives and the converter, so an
     imported need and a locally created one for the same case agree on
