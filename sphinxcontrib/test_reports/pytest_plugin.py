@@ -27,6 +27,7 @@ is only ever loaded by pytest.
 
 from __future__ import annotations
 
+import re
 import warnings
 from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
@@ -63,10 +64,12 @@ DERIVATION_TECHNIQUES = (
     "explorative-testing",
 )
 
-#: Bazel runs tests from a runfiles tree where the workspace appears as
-#: ``_main``; a location such as ``../_main/pkg/test_x.py`` names the source
-#: file ``pkg/test_x.py``.
-_RUNFILES_MARKER = "_main/"
+#: Bazel runs a test from a runfiles tree in which the workspace is the
+#: directory ``_main``: ``../_main/pkg/test_x.py`` names ``pkg/test_x.py``. Only
+#: a whole path component counts -- ``app_main/`` is somebody's directory -- and
+#: the last one wins, since under bzlmod the execroot's workspace directory is
+#: ``_main`` as well.
+_RUNFILES_PREFIX = re.compile(r"^(?:.*[\\/])?_main[\\/]")
 
 Recorder = Callable[[str, str], None]
 
@@ -268,12 +271,12 @@ def clean_source_path(path: str) -> str:
     """The workspace-relative source path of a test.
 
     pytest reports locations relative to its rootdir already; under Bazel the
-    rootdir sits inside a runfiles tree, so the path starts with ``../_main/``
-    and has to be cut down to the workspace path.
+    rootdir sits inside a runfiles tree, so the path leads through ``_main``,
+    the workspace directory of that tree -- as does an absolute path handed to
+    :func:`apply_test_metadata`. Everything up to and including the last
+    ``_main/`` component is cut.
     """
-    if _RUNFILES_MARKER in path:
-        return path.rsplit(_RUNFILES_MARKER, 1)[-1]
-    return path
+    return _RUNFILES_PREFIX.sub("", path, count=1)
 
 
 class TestReportsConfigWarning(pytest.PytestWarning):

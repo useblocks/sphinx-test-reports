@@ -146,11 +146,37 @@ class TestXmlShape:
         assert _cases(root)["test_plain"].get("file") is None
 
 
-class TestHelpers:
-    def test_bazel_runfiles_prefix_is_cut(self):
+class TestSourcePath:
+    def test_the_runfiles_prefix_is_cut_at_a_path_component(self):
         assert clean_source_path("../_main/pkg/test_x.py") == "pkg/test_x.py"
+        assert clean_source_path("_main/pkg/test_x.py") == "pkg/test_x.py"
+        assert (
+            clean_source_path("/cache/bin/t.runfiles/_main/pkg/test_x.py")
+            == "pkg/test_x.py"
+        )
         assert clean_source_path("pkg/test_x.py") == "pkg/test_x.py"
 
+    def test_a_directory_merely_ending_in_main_is_kept(self):
+        # Two files under app_main/ and domain_main/ used to collapse onto the
+        # same path -- and, with tr_deterministic_case_ids, onto the same ID.
+        assert (
+            clean_source_path("services/app_main/tests/test_api.py")
+            == "services/app_main/tests/test_api.py"
+        )
+        assert clean_source_path("domain_main/test_api.py") == "domain_main/test_api.py"
+
+    def test_the_last_runfiles_component_wins(self):
+        # Under bzlmod the execroot's workspace directory is _main as well.
+        assert (
+            clean_source_path("execroot/_main/bazel-out/bin/t.runfiles/_main/pkg/t.py")
+            == "pkg/t.py"
+        )
+
+    def test_windows_separators_count_as_boundaries(self):
+        assert clean_source_path("..\\_main\\pkg\\test_x.py") == "pkg\\test_x.py"
+
+
+class TestHelpers:
     def test_empty_values_are_dropped(self):
         assert properties_mapping(fully_verifies=["R"], test_type="") == {
             "FullyVerifies": "R"
