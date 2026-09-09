@@ -35,8 +35,11 @@ def short_hash(value: str, length: int = 5) -> str:
     return letters_only[:length].lower()
 
 
-#: ``name[param]`` as pytest spells a parameterised case.
-_PARAMETERISED = re.compile(r"^(?P<name>[^\[]+)($|\[(?P<param>.*)?\])")
+#: ``name[param]`` as pytest spells a parameterised case, and nothing else:
+#: anchored at both ends, so a name that merely contains a bracket -- an
+#: unclosed one, or text after the closing one -- is kept whole rather than
+#: cut at the bracket. The parameter is greedy, so brackets inside it survive.
+_PARAMETERISED = re.compile(r"^(?P<name>[^\[]+)(?:\[(?P<param>.*)\])?$")
 
 
 def split_case_name(name: str) -> tuple[str, str]:
