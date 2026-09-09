@@ -70,9 +70,15 @@ PLAIN_LINE = _line_of(DECORATED, "def test_plain")
 
 
 def _run(pytester, source, *extra, family="xunit1"):
+    """Run *source* with the plugin in a fresh pytest process and parse the XML.
+
+    A subprocess, not in-process: this module has the plugin imported already,
+    and pytest warns about a ``-p`` module it cannot assert-rewrite any more --
+    noise in the warning counts, an error under a strict warning policy.
+    """
     pytester.makepyfile(source)
     report = pytester.path / "report.xml"
-    result = pytester.runpytest(
+    result = pytester.runpytest_subprocess(
         "-p", PLUGIN, "--junitxml", str(report), "-o", f"junit_family={family}", *extra
     )
     return result, (ET.parse(report).getroot() if report.exists() else None)
@@ -278,3 +284,88 @@ class TestMarkerMerge:
             "FullyVerifies": "REQ_3",
             "TestType": "interface-test",
         }
+
+
+PLAIN = """
+def test_plain():
+    assert True
+"""
+
+MARKED_STRICT = """
+import pytest
+
+
+@pytest.mark.filterwarnings("error")
+def test_strict():
+    assert True
+"""
+
+
+class TestStartUp:
+    """The plugin's own notices, and pytest's about its fixtures, never take the
+    run down -- whatever the project's warning policy."""
+
+    def test_filterwarnings_error_in_the_ini_keeps_the_run_alive(self, pytester):
+        pytester.makeini("[pytest]\nfilterwarnings = error\n")
+        result, root = _run(pytester, DECORATED)
+        result.assert_outcomes(passed=2)
+        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_w_error_on_the_command_line_keeps_the_run_alive(self, pytester):
+        # An appended ini filter cannot silence the record_xml_attribute notice
+        # here: command-line filters take precedence over every ini line.
+        result, root = _run(pytester, DECORATED, "-W", "error")
+        result.assert_outcomes(passed=2)
+        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_a_strict_filterwarnings_mark_keeps_the_test_alive(self, pytester):
+        result, root = _run(pytester, MARKED_STRICT)
+        result.assert_outcomes(passed=1)
+        assert _cases(root)["test_strict"].get("file") is not None
+
+    def test_xunit2_under_filterwarnings_error_is_a_clean_usage_error(self, pytester):
+        # The project asked for warnings to be errors; the plugin's advice is
+        # one, delivered as a usage error rather than an INTERNALERROR trace.
+        pytester.makeini("[pytest]\nfilterwarnings = error\n")
+        result, _ = _run(pytester, PLAIN, family="xunit2")
+        assert result.ret == pytest.ExitCode.USAGE_ERROR
+        result.stderr.fnmatch_lines(["ERROR: *junit_family is 'xunit2'*xunit1*"])
+        assert "INTERNALERROR" not in result.stdout.str()
+
+    def test_the_notice_can_be_silenced_by_its_class(self, pytester):
+        pytester.makeini(
+            "[pytest]\nfilterwarnings =\n    error\n"
+            f"    ignore::{PLUGIN}.TestReportsConfigWarning\n"
+        )
+        result, _ = _run(pytester, PLAIN, family="xunit2")
+        result.assert_outcomes(passed=1, warnings=0)
+
+    def test_xunit2_gives_no_per_test_fixture_warnings(self, pytester):
+        # pytest drops the attributes under xunit2 anyway and would warn per test
+        # that record_xml_attribute is incompatible; the plugin says it once.
+        result, _ = _run(pytester, PLAIN, family="xunit2")
+        result.assert_outcomes(passed=1, warnings=1)
+        assert not [
+            line for line in result.stdout.lines if "is incompatible with" in line
+        ]
+
+    def test_legacy_is_an_alias_of_xunit1(self, pytester):
+        result, root = _run(pytester, DECORATED, family="legacy")
+        result.assert_outcomes(passed=2, warnings=0)
+        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_the_junitxml_plugin_may_be_disabled(self, pytester):
+        # config.option.xmlpath exists only while pytest's junitxml plugin is
+        # registered, and so do the record_* fixtures.
+        pytester.makepyfile(DECORATED)
+        result = pytester.runpytest_subprocess("-p", PLUGIN, "-p", "no:junitxml")
+        result.assert_outcomes(passed=2)
+
+    def test_xdist_is_warned_about(self, pytester):
+        # record_xml_attribute is a no-op on xdist workers: pytest builds the
+        # XML writer on the controller only, so the locations are lost silently.
+        pytest.importorskip("xdist")
+        result, root = _run(pytester, DECORATED, "-n", "1")
+        result.assert_outcomes(passed=2, warnings=1)
+        result.stdout.fnmatch_lines(["*TestReportsConfigWarning*pytest-xdist*"])
+        assert root is not None

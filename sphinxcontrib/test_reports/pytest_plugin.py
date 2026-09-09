@@ -27,6 +27,7 @@ is only ever loaded by pytest.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
@@ -275,40 +276,73 @@ def clean_source_path(path: str) -> str:
     return path
 
 
+class TestReportsConfigWarning(pytest.PytestWarning):
+    """A run configured such that the plugin cannot write the full XML shape.
+
+    Issued once at start-up. Where the project turns warnings into errors
+    (``filterwarnings = error``, ``-W error``) it becomes a clean usage error
+    rather than a traceback;
+    ``ignore::sphinxcontrib.test_reports.pytest_plugin.TestReportsConfigWarning``
+    silences it.
+    """
+
+
+def _report_family(config: pytest.Config) -> str | None:
+    """The ``junit_family`` of the report this run writes, ``None`` without one.
+
+    ``legacy`` is pytest's alias of ``xunit1``. The option does not exist under
+    ``-p no:junitxml``.
+    """
+    if not getattr(config.option, "xmlpath", None):
+        return None
+    family = str(config.getini("junit_family"))
+    return "xunit1" if family == "legacy" else family
+
+
+def _notify(config: pytest.Config, message: str) -> None:
+    """Issue *message* as :class:`TestReportsConfigWarning` at configure time."""
+    warning = TestReportsConfigWarning(
+        f"sphinxcontrib.test_reports.pytest_plugin: {message}"
+    )
+    try:
+        config.issue_config_time_warning(warning, stacklevel=3)
+    except TestReportsConfigWarning as error:
+        # The project's filters make warnings errors; raised out of
+        # pytest_configure this would be an INTERNALERROR traceback.
+        raise pytest.UsageError(str(error)) from None
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         f"{MARKER}(properties): properties written to the JUnit XML of the "
         "test; attached by sphinxcontrib.test_reports.pytest_plugin.add_test_properties",
     )
-    # record_xml_attribute is marked experimental and says so once per test;
-    # this plugin exists to use it, so the notice is noise here.
-    config.addinivalue_line(
-        "filterwarnings",
-        "ignore:record_xml_attribute is an experimental feature:"
-        "pytest.PytestExperimentalApiWarning",
-    )
-    xmlpath: object = config.option.xmlpath
-    family: object = config.getini("junit_family")
-    if xmlpath and family != "xunit1":
-        config.issue_config_time_warning(
-            pytest.PytestConfigWarning(
-                "sphinxcontrib.test_reports.pytest_plugin: junit_family is "
-                f"{family!r}, but pytest writes the file/line attributes of a "
-                "<testcase> only under 'xunit1'. Set junit_family = xunit1, or the "
-                "test cases will have no source location."
-            ),
-            stacklevel=2,
+    family = _report_family(config)
+    if family is None:
+        return
+    if family != "xunit1":
+        _notify(
+            config,
+            f"junit_family is {family!r}, but pytest writes the file/line "
+            "attributes of a <testcase> only under 'xunit1'. Set junit_family = "
+            "xunit1, or the test cases will have no source location.",
+        )
+    if getattr(config.option, "dist", "no") != "no" and not hasattr(
+        config, "workerinput"
+    ):
+        _notify(
+            config,
+            "pytest-xdist runs the tests on workers, where record_xml_attribute "
+            "is a no-op: the test cases will carry pytest's stock file/line "
+            "(counted from 0, runfiles prefix intact) instead of the plugin's. "
+            "Write the report without -n.",
         )
 
 
 @pytest.fixture(autouse=True)
-def _test_reports_xml_shape(
-    request: pytest.FixtureRequest,
-    record_property: Recorder,
-    record_xml_attribute: Recorder,
-) -> None:
-    """Record the source location and the marker's properties for every test.
+def _test_reports_xml_shape(request: pytest.FixtureRequest) -> None:
+    """Record the source location and the markers' properties for every test.
 
     Runs at setup, so a test that fails still carries both. The location is
     the test function's -- for a decorated function, the line of its first
@@ -316,16 +350,28 @@ def _test_reports_xml_shape(
     may override it later.
     """
     node: pytest.Item = request.node
-    location: tuple[str, int | None, str] = node.location
-    path, line_number, _domain = location
-    record_xml_attribute("file", clean_source_path(path))
-    if line_number is not None:
-        # pytest's line numbers are 0-based; editors and the report count
-        # from 1.
-        record_xml_attribute("line", str(line_number + 1))
+    if _report_family(request.config) == "xunit1":
+        # record_xml_attribute announces itself as experimental once per test;
+        # this plugin exists to use it, so the notice is dropped here, in
+        # process, where no warning policy of the project turns it into an
+        # error. Under any other family pytest would drop the attributes again
+        # and warn per test; the start-up notice covers that once.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", pytest.PytestExperimentalApiWarning)
+            record_xml_attribute: Recorder = request.getfixturevalue(
+                "record_xml_attribute"
+            )
+        path, line_number, _domain = node.location
+        record_xml_attribute("file", clean_source_path(path))
+        if line_number is not None:
+            # pytest's line numbers are 0-based; editors and the report count
+            # from 1.
+            record_xml_attribute("line", str(line_number + 1))
 
-    for name, value in _marked_properties(node).items():
-        record_property(name, value)
+    # What the record_property fixture does -- but that fixture belongs to the
+    # junitxml plugin (gone under -p no:junitxml) and warns per test under
+    # xunit2, which the start-up notice already covers.
+    node.user_properties.extend(_marked_properties(node).items())
 
 
 def _marked_properties(node: pytest.Item) -> dict[str, str]:

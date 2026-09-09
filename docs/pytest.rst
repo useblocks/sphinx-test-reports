@@ -21,12 +21,27 @@ Enabling it
    junit_family = xunit1
 
 then run with ``--junitxml=report.xml`` as usual. ``junit_family = xunit1`` is
-required: pytest writes ``<testcase>`` attributes only under that family, and the
-plugin warns at start-up when a report is requested under ``xunit2``. Every test
-case now carries ``file`` and ``line`` -- the path is relative to the pytest
-rootdir, and Bazel's ``_main/`` runfiles prefix is cut off.
+required: pytest writes ``<testcase>`` attributes only under that family (its
+``legacy`` is an alias), and the plugin warns at start-up when a report is
+requested under ``xunit2``. Every test case now carries ``file`` and ``line`` --
+the path is relative to the pytest rootdir, and Bazel's ``_main/`` runfiles
+prefix is cut off.
 
 Nothing else changes for tests that do not use the decorator below.
+
+.. note::
+
+   pytest builds the XML writer on the controller only, so under pytest-xdist
+   (``-n``) the workers cannot record the location: the test cases then carry
+   pytest's stock ``file``/``line`` (counted from 0), silently. The plugin warns
+   at start-up; write the report in a run without ``-n``.
+
+Both start-up notices are a ``TestReportsConfigWarning``. A project that turns
+warnings into errors (``filterwarnings = error``, ``-W error``) gets them as a
+clean usage error instead;
+``ignore::sphinxcontrib.test_reports.pytest_plugin.TestReportsConfigWarning``
+silences them. pytest's own notice that ``record_xml_attribute`` is experimental
+is dropped by the plugin, whatever the warning policy.
 
 Linking a test to requirements
 ------------------------------
