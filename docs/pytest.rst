@@ -177,6 +177,12 @@ the class and the requirement links on each method are merged into the method's
 ``<properties>``, the decorator closest to the function winning where two set
 the same property.
 
+A skipped test carries its properties too, so its requirement links are in the
+report next to ``result="skipped"``. The plugin records the link; what the link
+means is the project's rule to make. A traceability query that reads "verified"
+off a link has to look at ``result`` as well, or a test that never ran counts as
+verification.
+
 On the build side the properties arrive through the directives' property
 handling: ``tr_property_link_types`` turns a comma-separated property into a
 link field, and the link field has to exist as a sphinx-needs link type;
@@ -224,12 +230,25 @@ of at the test function:
        ...  # the actual checks
 
 Call it before the first assertion, so a failing test still carries its
-metadata. Metadata without values -- a file with an empty metadata block --
-writes no properties and is not an error; ``file`` and ``line`` are applied
-regardless, and hold under pytest-xdist, since they travel with the test report
-to where the XML is written. ``file`` is cut like every other location. Calls
-written against ``score_pytest`` may keep passing ``record_xml_attribute``; it
-is accepted and not needed.
+metadata. Metadata without values -- a file with an empty metadata block, a
+parser handing back ``""`` or ``[]`` for an absent field -- writes no properties
+and is not an error; ``file`` and ``line`` are applied regardless. ``file`` is
+cut like every other location.
+
+The override travels with the test report to where the XML is written, so it
+holds under pytest-xdist: as two ``user_properties`` entries named
+``sphinxcontrib.test_reports:file`` and ``sphinxcontrib.test_reports:line``,
+which the plugin takes out again before the properties are written. Those two
+names are reserved -- a property recorded under either is read as a location
+override, not written as a property.
+
+Calls written against ``score_pytest`` may keep passing ``record_xml_attribute``;
+the argument is accepted and ignored. Drop the fixture from the test's signature,
+though: requesting it is what makes pytest warn that the fixture is
+experimental, and under ``-W error`` or ``filterwarnings = error`` that request
+is a setup error. The plugin neither requests the fixture nor filters its
+notice any more, so whether a test keeps it, and how it treats the notice, is
+that test's own business.
 
 Origin
 ------

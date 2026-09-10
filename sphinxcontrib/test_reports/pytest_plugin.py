@@ -195,16 +195,8 @@ def _serialise(keyword: str, configured: Property | None, value: object) -> str 
     if isinstance(value, (bytes, bytearray)):
         raise TypeError(f"{keyword!r} takes a string, not {type(value).__name__}")
     if isinstance(value, Sequence):
-        if configured is None:
-            raise TypeError(
-                f"{keyword!r} is not a configured property and takes a single "
-                f"value; a line '{keyword}, list' in {OPTION} lets it write a list"
-            )
-        if not configured.multi:
-            raise TypeError(
-                f"{keyword!r} takes a single value, not a sequence; declare it "
-                f"'{keyword} = {configured.name}, list' in {OPTION} for lists"
-            )
+        # Empty items first: a parser handing back [] for an absent field has
+        # nothing to write under any keyword, so no arity applies.
         items: list[str] = []
         for index, item in enumerate(value):
             if item is None or item == "":
@@ -215,7 +207,19 @@ def _serialise(keyword: str, configured: Property | None, value: object) -> str 
                     "str; every item of a list is one value"
                 )
             items.append(item)
-        return ", ".join(items) or None
+        if not items:
+            return None
+        if configured is None:
+            raise TypeError(
+                f"{keyword!r} is not a configured property and takes a single "
+                f"value; a line '{keyword}, list' in {OPTION} lets it write a list"
+            )
+        if not configured.multi:
+            raise TypeError(
+                f"{keyword!r} takes a single value, not a sequence; declare it "
+                f"'{keyword} = {configured.name}, list' in {OPTION} for lists"
+            )
+        return ", ".join(items)
     raise TypeError(
         f"{keyword!r} takes a string"
         + (" or a list of strings" if configured and configured.multi else "")
@@ -316,9 +320,14 @@ def apply_test_metadata(
 
     *file* and *line* override the location the plugin recorded, so a case can
     point at the file that drove it rather than at the test function. The
-    override travels with the test report and is applied where the XML is
-    written, so it holds under pytest-xdist as well. *record_xml_attribute* is
-    accepted for calls written against ``score_pytest`` and not used.
+    override travels with the test report as two ``user_properties`` entries,
+    ``sphinxcontrib.test_reports:file`` and ``sphinxcontrib.test_reports:line``,
+    and is applied where the XML is written, so it holds under pytest-xdist as
+    well; the plugin takes the two entries out before the properties are
+    written, so a property recorded under either name is read as an override.
+    *record_xml_attribute* is accepted for calls written against
+    ``score_pytest`` and ignored -- and requesting that fixture is what draws
+    pytest's experimental-feature notice, so drop it from the signature.
     """
     for name, value in _normalise(metadata).items():
         record_property(name, value)
@@ -386,6 +395,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # First thing: pytest_unconfigure pops whatever happens here, so a session
+    # that fails to configure (a bad ini line) must have pushed already.
+    _OUTER_MODELS.append(dict(PROPERTIES))
     config.addinivalue_line(
         "markers",
         f"{MARKER}(properties): properties written to the JUnit XML of the "
@@ -396,13 +408,14 @@ def pytest_configure(config: pytest.Config) -> None:
         model = parse_properties(lines)
     except ValueError as error:
         raise pytest.UsageError(str(error)) from None
-    _OUTER_MODELS.append(dict(PROPERTIES))
     PROPERTIES.clear()
     PROPERTIES.update(model)
     config.pluginmanager.register(_XmlShape(config), name=_HOOKS)
 
     family = _report_family(config)
-    if family is not None and family != "xunit1":
+    # Once per run: an xdist worker has the same options, and its own notice
+    # would only repeat the controller's.
+    if family is not None and family != "xunit1" and not hasattr(config, "workerinput"):
         _notify(
             config,
             f"junit_family is {family!r}, but pytest writes the file/line "
@@ -439,8 +452,12 @@ def pytest_runtest_makereport(
     outcome = yield
     if problem is not None:
         report = outcome.get_result()
+        message = f"{type(problem).__name__}: {problem}"
+        # Appended, not replacing: a fixture that failed in the same setup
+        # stays visible, so both problems show at once.
+        existing = report.longreprtext
+        report.longrepr = f"{existing}\n\n{message}" if existing else message
         report.outcome = "failed"
-        report.longrepr = f"{type(problem).__name__}: {problem}"
 
 
 class _XmlShape:

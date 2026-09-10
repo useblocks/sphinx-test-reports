@@ -261,11 +261,22 @@ class TestXmlShape:
         assert case.get("line") == "7"
 
     def test_record_xml_attribute_is_still_accepted(self, pytester):
-        # score_pytest call sites pass it; it is not needed any more.
+        # score_pytest call sites pass it; it is not needed any more. Requesting
+        # pytest's fixture is what draws its experimental-feature notice.
         result, root = _run(pytester, RUNTIME_COMPAT)
-        result.assert_outcomes(passed=1, warnings=1)  # pytest's experimental notice
+        result.assert_outcomes(passed=1, warnings=1)
         case = _cases(root)["test_score_style"]
         assert (case.get("file"), case.get("line")) == ("specs/a.rst", "7")
+
+    def test_the_fixture_request_is_the_callers_under_a_strict_policy(self, pytester):
+        # The plugin neither requests that fixture nor silences its notice any
+        # more, so under -W error the request in the test's own signature is
+        # the error -- the docs say to drop it from the signature.
+        result, _ = _run(pytester, RUNTIME_COMPAT, "-W", "error")
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines(
+            ["*record_xml_attribute is an experimental feature*"]
+        )
 
     def test_cases_skipped_or_erroring_at_setup_carry_the_same_shape(self, pytester):
         # A function-scoped fixture never runs for these; the report has to be
@@ -281,6 +292,18 @@ class TestXmlShape:
 
     def test_an_inner_pytest_session_leaves_the_model_intact(self, pytester):
         result, root = _run(pytester, NESTED)
+        result.assert_outcomes(passed=3)
+        assert _properties(_cases(root)["test_after"]) == {"PartiallyVerifies": "REQ_2"}
+
+    def test_an_inner_session_that_fails_to_configure_leaves_it_intact(self, pytester):
+        # Its pytest_configure raises on the bad ini line; pytest_unconfigure
+        # still runs and must pop what that session pushed, not the outer entry.
+        broken = NESTED.replace(
+            'write_text("[pytest]\\n")',
+            'write_text("[pytest]\\ntest_reports_properties = a, set\\n")',
+        ).replace("str(inner)]) == 0", "str(inner)]) == 4")
+        assert broken != NESTED
+        result, root = _run(pytester, broken)
         result.assert_outcomes(passed=3)
         assert _properties(_cases(root)["test_after"]) == {"PartiallyVerifies": "REQ_2"}
 
@@ -450,6 +473,18 @@ class TestPropertyValues:
         with pytest.raises(TypeError, match="item.*int"):
             properties_mapping(partially_verifies=[1, 2])
 
+    def test_an_empty_list_under_any_keyword_writes_nothing(self, score_model):
+        # A parser returning [] for an absent field is the documented pattern;
+        # the arity check must not fire before the items are looked at.
+        assert properties_mapping(test_type=[], fully_verifies=["R"]) == {
+            "FullyVerifies": "R"
+        }
+        assert properties_mapping(Owner=[None, ""], fully_verifies=["R"]) == {
+            "FullyVerifies": "R"
+        }
+        with pytest.raises(TypeError, match="test_type.*single value"):
+            properties_mapping(test_type=["a"])
+
     def test_an_empty_nested_list_is_not_written_as_brackets(self, score_model):
         with pytest.raises(TypeError, match="item"):
             properties_mapping(partially_verifies=[[]], fully_verifies=["R"])
@@ -489,11 +524,16 @@ class TestPropertyValues:
 
 class TestRuntimeMetadata:
     def test_all_empty_metadata_records_nothing(self, score_model):
-        # A spec file with an empty metadata block must not fail the test.
+        # A spec file with an empty metadata block must not fail the test --
+        # whether the parser hands back "" or [] for an absent field.
         recorded = []
         apply_test_metadata(
             record_property=lambda name, value: recorded.append((name, value)),
-            metadata={"fully_verifies": [], "test_type": ""},
+            metadata={"fully_verifies": [], "test_type": "", "Owner": []},
+        )
+        apply_test_metadata(
+            record_property=lambda name, value: recorded.append((name, value)),
+            metadata={"test_type": [], "derivation_technique": [None]},
         )
         assert recorded == []
 
@@ -507,6 +547,40 @@ class TestRuntimeMetadata:
         case = _cases(root)["test_driven_by_a_file[a.rst]"]
         assert _properties(case) == {}
         assert (case.get("file"), case.get("line")) == ("specs/a.rst", "7")
+
+
+BAD_SHAPE_AND_BROKEN_FIXTURE = """
+import pytest
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+
+@pytest.fixture
+def broken():
+    raise RuntimeError("no database")
+
+
+@add_test_properties(test_type=["a", "b"])
+def test_both(broken):
+    assert True
+"""
+
+
+class TestBadShape:
+    def test_a_bad_shape_errors_the_case_at_setup(self, pytester):
+        result, root = _run(
+            pytester,
+            "from sphinxcontrib.test_reports.pytest_plugin import add_test_properties\n\n@add_test_properties(test_type=['a', 'b'])\ndef test_shape():\n    assert True\n",
+        )
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines(["*TypeError*'test_type' takes a single value*"])
+
+    def test_a_bad_shape_is_appended_to_a_fixture_error(self, pytester):
+        # Replacing the fixture's error would hide it until the shape is fixed.
+        result, _ = _run(pytester, BAD_SHAPE_AND_BROKEN_FIXTURE)
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines(
+            ["*RuntimeError: no database*", "*TypeError*'test_type'*"]
+        )
 
 
 class TestMarkerMerge:
@@ -607,6 +681,11 @@ class TestStartUp:
         case = _cases(root)["test_addition"]
         assert case.get("line") == str(ADDITION_LINE)
         assert _properties(case)["PartiallyVerifies"] == "REQ_1, REQ_2"
+
+    def test_xdist_issues_the_xunit2_notice_once(self, pytester):
+        pytest.importorskip("xdist")
+        result, _ = _run(pytester, PLAIN, "-n", "1", family="xunit2")
+        result.assert_outcomes(passed=1, warnings=1)
 
     def test_xdist_gets_the_runtime_location_override(self, pytester):
         pytest.importorskip("xdist")

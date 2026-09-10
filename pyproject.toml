@@ -27,9 +27,12 @@ dependencies = ["sphinx>=7.4", "lxml", "sphinx-needs>=6.0.1"]
 
 [project.optional-dependencies]
 # The pytest plugin (sphinxcontrib.test_reports.pytest_plugin); pytest is not
-# a dependency of the extension or the converter. 7.4 is the first pytest that
-# runs on Python 3.12, so the floor holds on every interpreter this supports.
-pytest = ["pytest>=7.4"]
+# a dependency of the extension or the converter. 7.0 is where everything the
+# plugin uses exists (pytest.Config/Item/Mark, Config.stash,
+# issue_config_time_warning). pytest before 7.3.2 does not run on Python 3.12
+# at all -- that floor is pytest's own, not this one's; the nox session
+# plugin_floor runs the plugin's tests on the oldest pytest of each Python.
+pytest = ["pytest>=7.0"]
 test = [
   "beautifulsoup4",
   "nox>=2025.2.9",
