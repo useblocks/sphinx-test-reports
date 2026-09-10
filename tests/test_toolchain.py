@@ -21,6 +21,7 @@ DECLARED = [
     "lxml",
     'sphinx>=7.4; extra == "sphinx"',
     'sphinx-needs>=6.0.1; extra == "sphinx"',
+    'pytest>=7.0; extra == "pytest"',
     'pytest>=7.0; extra == "test"',
 ]
 

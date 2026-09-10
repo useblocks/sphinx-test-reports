@@ -45,8 +45,9 @@ jobs:
         run: nox --non-interactive --session "plugin_floor(python='${{ matrix.python-version }}', pytest_version='${{ matrix.pytest-version }}')" -- --full-trace
 
   toolchain-free:
-    # The converter runs without Sphinx; this installs the bare package and
-    # runs its tests where Sphinx is absent, the only thing that guarantees it.
+    # The converter and the pytest plugin run without Sphinx; this installs the
+    # package with the `pytest` extra alone and runs their tests where Sphinx is
+    # absent, the only thing that guarantees it.
     name: "Test without Sphinx (python: ${{ matrix.python-version }})"
     runs-on: ubuntu-latest
     strategy:

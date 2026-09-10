@@ -8,10 +8,11 @@ from tempfile import mkdtemp
 import pytest
 
 # The documentation toolchain is an extra of the package, and the converter's
-# tests run where it is not installed (the `toolchain_free` nox session), so
-# Sphinx's fixtures are loaded only where Sphinx is. Tests that need a build
-# carry the `toolchain` mark and are deselected there. `pytester`, which the
-# pytest plugin's tests drive, ships with pytest itself.
+# and the pytest plugin's tests run where it is not installed (the
+# `toolchain_free` and `plugin_floor` nox sessions), so Sphinx's fixtures are
+# loaded only where Sphinx is. Tests that need a build carry the `toolchain`
+# mark and are deselected there. `pytester`, which the plugin's tests drive,
+# ships with pytest itself.
 pytest_plugins = (
     ["sphinx.testing.fixtures"] if importlib.util.find_spec("sphinx") else []
 ) + ["pytester"]

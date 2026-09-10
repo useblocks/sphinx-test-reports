@@ -26,8 +26,9 @@ requires-python = ">=3.11"
 dependencies = ["lxml"]
 
 [project.optional-dependencies]
-# The Sphinx extension. The `test-reports` command runs without the
-# documentation toolchain, so it is an extra rather than a dependency; the lazy
+# The Sphinx extension. The `test-reports` command and the pytest plugin run
+# without the documentation toolchain, so it is an extra rather than a
+# dependency; the lazy
 # `setup` in `__init__.py` enforces these floors when the extension is loaded,
 # since an extra is opt-in and pip never sees them otherwise.
 sphinx = ["sphinx>=7.4", "sphinx-needs>=6.0.1"]
