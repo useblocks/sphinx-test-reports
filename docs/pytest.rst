@@ -4,12 +4,15 @@ pytest plugin
 =============
 .. versionadded:: 1.5.0
 
-A stock pytest run writes a JUnit XML that this extension can only partly use:
-no ``<testcase>`` carries the ``file``/``line`` attributes that give a test case
-its source location (``tr_source_file_option``/``tr_source_line_option``, and
-the deterministic ID of ``tr_deterministic_case_ids``), and nothing records the
-requirements a test verifies. ``Sphinx-Test-Reports`` ships a small pytest
-plugin that writes both.
+A stock pytest run writes a JUnit XML that this extension can only partly use.
+Under pytest's default ``junit_family = xunit2`` no ``<testcase>`` carries the
+``file``/``line`` attributes that give a test case its source location
+(``tr_source_file_option``/``tr_source_line_option``, and the deterministic ID
+of ``tr_deterministic_case_ids``). Under ``xunit1`` pytest writes them, but
+counts the line from 0, keeps Bazel's runfiles prefix, and has no way to point
+a case at the file that drove it. And nothing records the requirements a test
+verifies. ``Sphinx-Test-Reports`` ships a small pytest plugin that takes care
+of both.
 
 The plugin is generic: which properties exist, what they are called in the XML
 and whether they take a list is pytest configuration, not code. S-CORE's model
@@ -27,25 +30,22 @@ Enabling it
 then run with ``--junitxml=report.xml`` as usual. ``junit_family = xunit1`` is
 required: pytest writes ``<testcase>`` attributes only under that family (its
 ``legacy`` is an alias), and the plugin warns at start-up when a report is
-requested under ``xunit2``. Every test case now carries ``file`` and ``line`` --
-the path is relative to the pytest rootdir, and Bazel's ``_main/`` runfiles
-prefix is cut off.
+requested under ``xunit2``. Every test case now carries ``file`` and ``line``
+as an editor shows them: the line counted from 1, the path relative to the
+pytest rootdir with Bazel's ``_main/`` runfiles prefix cut off. Every case
+means every case -- one skipped or erroring during setup gets the same
+treatment, so a deterministic ID does not move with the outcome. The plugin
+works through hooks on the test reports, not fixtures, which is also why it
+holds under pytest-xdist: the location is written on the controller, where
+pytest keeps the XML writer, and the properties travel with the reports.
 
 Nothing else changes for tests that do not use the decorator below.
 
-.. note::
-
-   pytest builds the XML writer on the controller only, so under pytest-xdist
-   (``-n``) the workers cannot record the location: the test cases then carry
-   pytest's stock ``file``/``line`` (counted from 0), silently. The plugin warns
-   at start-up; write the report in a run without ``-n``.
-
-Both start-up notices are a ``TestReportsConfigWarning``. A project that turns
-warnings into errors (``filterwarnings = error``, ``-W error``) gets them as a
+The start-up notice is a ``TestReportsConfigWarning``. A project that turns
+warnings into errors (``filterwarnings = error``, ``-W error``) gets it as a
 clean usage error instead;
 ``ignore::sphinxcontrib.test_reports.pytest_plugin.TestReportsConfigWarning``
-silences them. pytest's own notice that ``record_xml_attribute`` is experimental
-is dropped by the plugin, whatever the warning policy.
+silences it.
 
 Declaring the properties
 ------------------------
@@ -71,9 +71,17 @@ carry, one per line:
 
 A keyword that is not declared is written under its own name with a single
 value. A list under it is a ``TypeError`` whose message names the option, so a
-project cannot lose requirement IDs to a Python ``repr`` silently. A line
-outside the grammar stops the run at start-up with a usage error that quotes
-it.
+project cannot lose requirement IDs to a Python ``repr`` silently. For the same
+reason every item of a list has to be a string: a nested list, ``bytes`` or any
+other object is a ``TypeError`` naming the item. Values are joined with a comma
+and split on it again on the build side, and there is no escaping, so a value
+of a ``list`` property must not contain a comma. A line outside the grammar, or
+two keywords declaring the same XML name, stops the run at start-up with a usage
+error that quotes the line.
+
+The option exists only while the plugin is loaded: an ini file that declares
+``test_reports_properties`` without the ``-p`` line above fails
+``--strict-config`` with an unknown option. The two belong together.
 
 **Example: S-CORE.** The model of S-CORE's docs-as-code, whose ``score_pytest``
 plugin this one was ported from:
@@ -156,10 +164,13 @@ writes, on that test's ``<testcase>``:
    </properties>
 
 The declared XML name doubles as keyword, so ``PartiallyVerifies=[...]`` is
-accepted too. Empty values are not written, and a decorator that would write
+accepted too; a keyword declared as such wins over an XML name of the same
+spelling. Empty values are not written, and a decorator that would write
 nothing is an error at import time. The values are written when the test is
 set up, against the declared model; a wrong shape -- a list where one value is
-expected -- fails that test with the ``TypeError`` above.
+expected -- makes that test error at setup with the ``TypeError`` above (its
+need then carries the result ``error``, not ``failure``). The properties keep
+the order of the keywords.
 
 The decorator also goes on a class, and decorators stack: a classification on
 the class and the requirement links on each method are merged into the method's
@@ -168,22 +179,26 @@ the same property.
 
 On the build side the properties arrive through the directives' property
 handling: ``tr_property_link_types`` turns a comma-separated property into a
-link field, and the link field has to exist as a sphinx-needs link type --
+link field, and the link field has to exist as a sphinx-needs link type;
+``tr_extra_options`` lists the properties that become plain fields, each of
+which has to exist as a need field --
 
 .. code-block:: python
 
-   # conf.py
-   needs_extra_links = [
-       {"option": "partially_verifies", "incoming": "partially verified by", "outgoing": "partially verifies"},
-       {"option": "fully_verifies", "incoming": "fully verified by", "outgoing": "fully verifies"},
-   ]
+   # conf.py, sphinx-needs 7 and later
+   needs_links = {
+       "partially_verifies": {"incoming": "partially verified by", "outgoing": "partially verifies"},
+       "fully_verifies": {"incoming": "fully verified by", "outgoing": "fully verifies"},
+   }
+   needs_fields = {"TestType": {"nullable": True}, "DerivationTechnique": {"nullable": True}}
    tr_property_link_types = {"PartiallyVerifies": "partially_verifies", "FullyVerifies": "fully_verifies"}
+   tr_extra_options = ["TestType", "DerivationTechnique"]
 
--- and ``tr_extra_options`` lists the properties that become plain fields
-(``TestType``, ``DerivationTechnique``, ...), each of which needs its
-``needs_extra_options`` entry in turn. A link field missing from
-``needs_extra_links`` fails the build on the first test case that carries the
-property. The same names work for any other consumer of the report.
+On sphinx-needs 6 the two registrations are ``needs_extra_links`` (a list of
+dicts with an ``option`` key) and ``needs_extra_options`` (a list of names);
+sphinx-needs 7 deprecated both in favour of the spelling above. A link field
+missing from ``needs_links`` fails the build on the first test case that carries
+the property. The same names work for any other consumer of the report.
 
 Metadata known only at run time
 -------------------------------
@@ -198,12 +213,11 @@ of at the test function:
    from sphinxcontrib.test_reports.pytest_plugin import apply_test_metadata
 
    @pytest.mark.parametrize("spec", SPECS)
-   def test_spec(spec, record_property, record_xml_attribute):
+   def test_spec(spec, record_property):
        metadata = read_metadata(spec)   # {"fully_verifies": [...], "test_type": ...}
        apply_test_metadata(
            record_property=record_property,
            metadata=metadata,
-           record_xml_attribute=record_xml_attribute,
            file=str(spec),
            line=metadata_line(spec),
        )
@@ -212,7 +226,10 @@ of at the test function:
 Call it before the first assertion, so a failing test still carries its
 metadata. Metadata without values -- a file with an empty metadata block --
 writes no properties and is not an error; ``file`` and ``line`` are applied
-regardless.
+regardless, and hold under pytest-xdist, since they travel with the test report
+to where the XML is written. ``file`` is cut like every other location. Calls
+written against ``score_pytest`` may keep passing ``record_xml_attribute``; it
+is accepted and not needed.
 
 Origin
 ------
@@ -220,8 +237,14 @@ Origin
 The plugin is a port of the ``score_pytest`` attribute plugin of S-CORE's
 `docs-as-code <https://github.com/eclipse-score/docs-as-code>`_. What that
 plugin hard-codes -- the four properties and their spelling -- is the
-``test_reports_properties`` example above here, so the XML comes out the same
-and other metamodels declare their own. Two of its rules are not ported,
-because they are that project's process rules rather than properties of the
-data: the ``test_type`` and ``derivation_technique`` vocabularies are documented
-but not enforced, and a decorated test is not required to carry a docstring.
+``test_reports_properties`` example above here, and other metamodels declare
+their own. With that example the XML comes out the same, with four exceptions:
+a case skipped or erroring at setup carries its location and properties here
+and pytest's stock values there; the properties keep the order of the keywords
+rather than a fixed one; the Bazel prefix is cut at a whole ``_main`` component
+only, not wherever the text ``_main/`` occurs; and a ``file`` handed to
+``apply_test_metadata`` is cut the same way rather than passed through. Two of
+that plugin's rules are not ported, because they are process rules of that
+project rather than properties of the data: the ``test_type`` and
+``derivation_technique`` vocabularies are documented but not enforced, and a
+decorated test is not required to carry a docstring.

@@ -4,11 +4,14 @@ Enable it with ``-p sphinxcontrib.test_reports.pytest_plugin`` (or in
 ``addopts``) and write the report with ``--junitxml`` under
 ``junit_family = xunit1``. Two things then happen to every ``<testcase>``:
 
-* it carries ``file`` and ``line`` attributes -- the source location that the
-  directives put into ``tr_source_file_option``/``tr_source_line_option`` and
-  that a deterministic case ID is derived from. pytest only writes these under
-  ``xunit1``, and only through the ``record_xml_attribute`` fixture; nothing in
-  a stock run produces them;
+* its ``file``/``line`` attributes -- the source location that the directives
+  put into ``tr_source_file_option``/``tr_source_line_option`` and that a
+  deterministic case ID is derived from -- are the ones an editor shows. pytest
+  writes the two under ``xunit1`` on its own, but counts the line from 0, keeps
+  Bazel's runfiles prefix and has no way to point a case at the file that drove
+  it; the plugin corrects the first two and adds the third
+  (:func:`apply_test_metadata`). Under the default ``xunit2`` pytest drops both
+  attributes, which is why ``xunit1`` is required;
 * the properties given with :func:`add_test_properties` (or, for parameterised
   tests, :func:`apply_test_metadata`) are written as ``<properties>``, which the
   directives turn into need fields (``tr_extra_options``) and link fields
@@ -20,12 +23,21 @@ under and whether it takes a list is configuration, not code: the
 :func:`parse_properties`). The plugin ships no metamodel of its own; S-CORE's
 is a four-line example in the docs.
 
+Both things happen through hooks on the test reports, not through fixtures, so
+a case that is skipped or errors during setup is shaped like one that ran, and
+under pytest-xdist the location is written on the controller, where pytest
+keeps the XML writer.
+
 Ported from the ``score_pytest`` attribute plugin of S-CORE's docs-as-code.
-With that example configured the XML is shaped identically, so tests written
-against that plugin keep working when they import from here instead. Two
-deliberate differences: the ``TestType``/``DerivationTechnique`` vocabularies
-are documented, not enforced, and a test does not have to carry a docstring --
-both are process rules of that project, not of this tool.
+With that example configured the XML comes out the same, with four exceptions:
+a case skipped or erroring at setup carries its location and properties here
+and pytest's stock values there; the properties keep the order of the keywords
+rather than a fixed one; the Bazel prefix is cut at a whole ``_main`` component
+only; and a file handed to :func:`apply_test_metadata` is cut the same way
+rather than passed through. Two of that plugin's rules are not ported: the
+``TestType``/``DerivationTechnique`` vocabularies are documented, not enforced,
+and a test does not have to carry a docstring -- both are process rules of that
+project, not of this tool.
 
 This module imports pytest and nothing else from the package's Sphinx side; it
 is only ever loaded by pytest.
@@ -34,11 +46,14 @@ is only ever loaded by pytest.
 from __future__ import annotations
 
 import re
-import warnings
 from dataclasses import dataclass
-from typing import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Callable, Generator, Mapping, Sequence
 
+import pluggy
 import pytest
+
+if TYPE_CHECKING:
+    from _pytest.junitxml import LogXML
 
 #: Name of the marker :func:`add_test_properties` attaches. Registered in
 #: :func:`pytest_configure` so ``--strict-markers`` accepts it.
@@ -64,6 +79,19 @@ _LINE = re.compile(
 #: ``_main`` as well.
 _RUNFILES_PREFIX = re.compile(r"^(?:.*[\\/])?_main[\\/]")
 
+#: The location override of :func:`apply_test_metadata` travels with the test
+#: report as two entries of its ``user_properties`` under these names, and is
+#: taken out again before pytest writes the properties -- on the process that
+#: holds the XML writer, which under pytest-xdist is the controller, not the
+#: worker the test ran on. Maps the entry name to the attribute it sets.
+_OVERRIDES = {
+    "sphinxcontrib.test_reports:file": "file",
+    "sphinxcontrib.test_reports:line": "line",
+}
+
+#: Registration name of the per-session hook object, :class:`_XmlShape`.
+_HOOKS = "sphinxcontrib.test_reports.xml_shape"
+
 Recorder = Callable[[str, str], None]
 
 #: What a property keyword accepts: one value, or -- for a multi-valued
@@ -77,7 +105,7 @@ class Property:
 
     #: The ``<property name="...">`` written.
     name: str
-    #: Multi-valued: a sequence of values is joined with ``", "``, which
+    #: Multi-valued: a sequence of strings is joined with ``", "``, which
     #: ``tr_property_link_types`` splits again on the build side; a bare string
     #: counts as one value. A single-valued property takes one value, and a
     #: sequence is an error rather than a silent join.
@@ -85,9 +113,13 @@ class Property:
 
 
 #: Keyword -> how it is written: the model of :data:`OPTION`, installed by
-#: :func:`pytest_configure`. A keyword not found here is written under its own
-#: name and takes a single value only.
+#: :func:`pytest_configure` for the duration of the session (an inner session
+#: gets its own and hands the outer one back). A keyword not found here is
+#: written under its own name and takes a single value only.
 PROPERTIES: dict[str, Property] = {}
+
+#: The models of the sessions an in-process inner session interrupted.
+_OUTER_MODELS: list[dict[str, Property]] = []
 
 
 def parse_properties(lines: Sequence[str]) -> dict[str, Property]:
@@ -105,7 +137,7 @@ def parse_properties(lines: Sequence[str]) -> dict[str, Property]:
             derivation_technique = DerivationTechnique
 
     :raises ValueError: for a line outside the grammar, a flag other than
-        ``list``, or a keyword declared twice.
+        ``list``, a keyword declared twice, or two keywords sharing an XML name.
     """
     model: dict[str, Property] = {}
     for line in lines:
@@ -124,12 +156,22 @@ def parse_properties(lines: Sequence[str]) -> dict[str, Property]:
             )
         if keyword in model:
             raise ValueError(f"{OPTION}: {keyword!r} is declared twice")
-        model[keyword] = Property(name or keyword, multi=flag == "list")
+        name = name or keyword
+        if any(existing.name == name for existing in model.values()):
+            raise ValueError(
+                f"{OPTION}: {name!r} is the XML name of two keywords; one "
+                "property, one line"
+            )
+        model[keyword] = Property(name, multi=flag == "list")
     return model
 
 
 def _lookup(keyword: str) -> Property | None:
-    """The configured property for *keyword*, also when given by its XML name."""
+    """The configured property for *keyword*.
+
+    A declared keyword first; failing that, a property whose XML name is
+    spelled like *keyword*, so the XML name doubles as keyword.
+    """
     configured = PROPERTIES.get(keyword)
     if configured is not None:
         return configured
@@ -137,11 +179,21 @@ def _lookup(keyword: str) -> Property | None:
 
 
 def _serialise(keyword: str, configured: Property | None, value: object) -> str | None:
-    """The text written for *value*, or ``None`` when there is nothing to write."""
+    """The text written for *value*, or ``None`` when there is nothing to write.
+
+    Strict about shape, because the build side splits a link property on
+    commas and turns every piece into a need ID: what is not a string, or a
+    list of strings under a ``list`` property, is a ``TypeError`` rather than
+    a ``repr`` that becomes bogus IDs.
+    """
     if value is None:
         return None
-    if isinstance(value, (str, int, float)):
-        return str(value) or None
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, (bytes, bytearray)):
+        raise TypeError(f"{keyword!r} takes a string, not {type(value).__name__}")
     if isinstance(value, Sequence):
         if configured is None:
             raise TypeError(
@@ -153,7 +205,17 @@ def _serialise(keyword: str, configured: Property | None, value: object) -> str 
                 f"{keyword!r} takes a single value, not a sequence; declare it "
                 f"'{keyword} = {configured.name}, list' in {OPTION} for lists"
             )
-        return ", ".join(str(item) for item in value if item not in (None, "")) or None
+        items: list[str] = []
+        for index, item in enumerate(value):
+            if item is None or item == "":
+                continue
+            if not isinstance(item, str):
+                raise TypeError(
+                    f"item {index} of {keyword!r} is {type(item).__name__}, not "
+                    "str; every item of a list is one value"
+                )
+            items.append(item)
+        return ", ".join(items) or None
     raise TypeError(
         f"{keyword!r} takes a string"
         + (" or a list of strings" if configured and configured.multi else "")
@@ -173,11 +235,16 @@ def _normalise(properties: Mapping[str, object]) -> dict[str, str]:
 
 
 def _empty(value: object) -> bool:
-    """Whether *value* would write nothing, whatever the model says."""
+    """Whether :func:`_serialise` would write nothing for a well-formed *value*.
+
+    ``None``, ``""`` and a sequence holding nothing else are empty. Anything
+    else is not -- a list holding a list is not empty, it is wrong, and
+    :func:`_serialise` says so.
+    """
     if value is None or value == "":
         return True
-    if isinstance(value, Sequence) and not isinstance(value, str):
-        return all(_empty(item) for item in value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return all(item is None or item == "" for item in value)
     return False
 
 
@@ -190,7 +257,7 @@ def properties_mapping(**properties: Value) -> dict[str, str]:
 
     :raises ValueError: when nothing would be written.
     :raises TypeError: for a sequence under a single-valued or unconfigured
-        keyword, or a value of another kind.
+        keyword, a list item that is not a string, or a value of another kind.
     """
     cleaned = _normalise(properties)
     if not cleaned:
@@ -215,9 +282,9 @@ def add_test_properties(
 
     The keywords are the ones ``test_reports_properties`` declares; any other
     keyword is written under its own name with a single value. The values are
-    kept as given and written at test setup, when the model is known, so the
-    decorator itself does not depend on configuration having been read. A call
-    that would write nothing is refused here, at import time.
+    kept as given and written when the test is set up, against the model known
+    then, so the decorator itself does not depend on configuration having been
+    read. A call that would write nothing is refused here, at import time.
     """
     if all(_empty(value) for value in properties.values()):
         raise ValueError("no test properties given: every value is empty")
@@ -247,18 +314,18 @@ def apply_test_metadata(
     without a value -- absent, or with nothing but empty entries -- writes no
     properties and is not an error.
 
-    With *record_xml_attribute*, *file* and *line* override the location the
-    plugin's fixture recorded, so a case can point at the file that drove it
-    rather than at the test function.
+    *file* and *line* override the location the plugin recorded, so a case can
+    point at the file that drove it rather than at the test function. The
+    override travels with the test report and is applied where the XML is
+    written, so it holds under pytest-xdist as well. *record_xml_attribute* is
+    accepted for calls written against ``score_pytest`` and not used.
     """
     for name, value in _normalise(metadata).items():
         record_property(name, value)
-
-    if record_xml_attribute is not None:
-        if file is not None:
-            record_xml_attribute("file", clean_source_path(file))
-        if line is not None:
-            record_xml_attribute("line", str(line))
+    if file is not None:
+        record_property("sphinxcontrib.test_reports:file", clean_source_path(file))
+    if line is not None:
+        record_property("sphinxcontrib.test_reports:line", str(line))
 
 
 def clean_source_path(path: str) -> str:
@@ -329,67 +396,108 @@ def pytest_configure(config: pytest.Config) -> None:
         model = parse_properties(lines)
     except ValueError as error:
         raise pytest.UsageError(str(error)) from None
+    _OUTER_MODELS.append(dict(PROPERTIES))
     PROPERTIES.clear()
     PROPERTIES.update(model)
+    config.pluginmanager.register(_XmlShape(config), name=_HOOKS)
 
     family = _report_family(config)
-    if family is None:
-        return
-    if family != "xunit1":
+    if family is not None and family != "xunit1":
         _notify(
             config,
             f"junit_family is {family!r}, but pytest writes the file/line "
             "attributes of a <testcase> only under 'xunit1'. Set junit_family = "
             "xunit1, or the test cases will have no source location.",
         )
-    if getattr(config.option, "dist", "no") != "no" and not hasattr(
-        config, "workerinput"
-    ):
-        _notify(
-            config,
-            "pytest-xdist runs the tests on workers, where record_xml_attribute "
-            "is a no-op: the test cases will carry pytest's stock file/line "
-            "(counted from 0, runfiles prefix intact) instead of the plugin's. "
-            "Write the report without -n.",
-        )
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
+    config.pluginmanager.unregister(name=_HOOKS)
     PROPERTIES.clear()
+    if _OUTER_MODELS:
+        PROPERTIES.update(_OUTER_MODELS.pop())
 
 
-@pytest.fixture(autouse=True)
-def _test_reports_xml_shape(request: pytest.FixtureRequest) -> None:
-    """Record the source location and the markers' properties for every test.
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+) -> Generator[None, pluggy.Result[pytest.TestReport], None]:
+    """Attach the markers' properties to the item before its setup report is made.
 
-    Runs at setup, so a test that fails still carries both. The location is
-    the test function's -- for a decorated function, the line of its first
-    decorator, which is where pytest points too; :func:`apply_test_metadata`
-    may override it later.
+    A hook rather than a fixture, so a case that is skipped or errors during
+    setup carries them too. The report copies the item's ``user_properties``,
+    which is how they reach the XML writer -- across the wire under xdist. A
+    value of the wrong shape turns the setup report into an error for that
+    case, with the message.
     """
-    node: pytest.Item = request.node
-    if _report_family(request.config) == "xunit1":
-        # record_xml_attribute announces itself as experimental once per test;
-        # this plugin exists to use it, so the notice is dropped here, in
-        # process, where no warning policy of the project turns it into an
-        # error. Under any other family pytest would drop the attributes again
-        # and warn per test; the start-up notice covers that once.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", pytest.PytestExperimentalApiWarning)
-            record_xml_attribute: Recorder = request.getfixturevalue(
-                "record_xml_attribute"
-            )
-        path, line_number, _domain = node.location
-        record_xml_attribute("file", clean_source_path(path))
-        if line_number is not None:
-            # pytest's line numbers are 0-based; editors and the report count
-            # from 1.
-            record_xml_attribute("line", str(line_number + 1))
+    problem: Exception | None = None
+    if call.when == "setup":
+        try:
+            item.user_properties.extend(_marked_properties(item).items())
+        except (TypeError, pytest.UsageError) as error:
+            problem = error
+    outcome = yield
+    if problem is not None:
+        report = outcome.get_result()
+        report.outcome = "failed"
+        report.longrepr = f"{type(problem).__name__}: {problem}"
 
-    # What the record_property fixture does -- but that fixture belongs to the
-    # junitxml plugin (gone under -p no:junitxml) and warns per test under
-    # xunit2, which the start-up notice already covers.
-    node.user_properties.extend(_marked_properties(node).items())
+
+class _XmlShape:
+    """The per-session hooks that shape pytest's XML writer's output.
+
+    Registered by :func:`pytest_configure` so that they hold the session's
+    config. They act on the process that owns the XML writer: in a plain run
+    this one, under pytest-xdist the controller, where the workers' reports
+    arrive.
+    """
+
+    def __init__(self, config: pytest.Config) -> None:
+        self.config = config
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
+        # tryfirst: before pytest's junitxml handler reads the report's
+        # user_properties, the override entries have to be gone from them.
+        # A worker forwards its reports untouched; the controller does this.
+        if hasattr(self.config, "workerinput"):
+            return
+        overrides = [
+            (name, value)
+            for name, value in report.user_properties
+            if name in _OVERRIDES
+        ]
+        if overrides:
+            report.user_properties[:] = [
+                entry for entry in report.user_properties if entry[0] not in _OVERRIDES
+            ]
+        xml = _xml_writer(self.config)
+        if xml is None or _report_family(self.config) != "xunit1":
+            return
+        reporter = xml.node_reporter(report)
+        if report.when == "setup":
+            path, line_number, _domain = report.location
+            reporter.add_attribute("file", clean_source_path(path))
+            if line_number is not None:
+                # pytest's line numbers are 0-based; editors and the report
+                # count from 1.
+                reporter.add_attribute("line", str(line_number + 1))
+        for name, value in overrides:
+            reporter.add_attribute(_OVERRIDES[name], str(value))
+
+
+def _xml_writer(config: pytest.Config) -> LogXML | None:
+    """pytest's XML writer of this run: ``None`` without ``--junitxml``, under
+    ``-p no:junitxml``, and on an xdist worker, where pytest does not build it.
+
+    The writer is what the ``record_xml_attribute`` fixture talks to as well;
+    it lives behind a private key, so its absence is handled, not assumed.
+    """
+    try:
+        from _pytest.junitxml import xml_key
+    except ImportError:  # pragma: no cover -- pytest moved its junitxml plugin
+        return None
+    return config.stash.get(xml_key, None)
 
 
 def _marked_properties(node: pytest.Item) -> dict[str, str]:

@@ -27,8 +27,9 @@ dependencies = ["sphinx>=7.4", "lxml", "sphinx-needs>=6.0.1"]
 
 [project.optional-dependencies]
 # The pytest plugin (sphinxcontrib.test_reports.pytest_plugin); pytest is not
-# a dependency of the extension or the converter.
-pytest = ["pytest>=7.0"]
+# a dependency of the extension or the converter. 7.4 is the first pytest that
+# runs on Python 3.12, so the floor holds on every interpreter this supports.
+pytest = ["pytest>=7.4"]
 test = [
   "beautifulsoup4",
   "nox>=2025.2.9",

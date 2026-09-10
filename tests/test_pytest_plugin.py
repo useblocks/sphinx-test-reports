@@ -53,16 +53,81 @@ import pytest
 from sphinxcontrib.test_reports.pytest_plugin import apply_test_metadata
 
 @pytest.mark.parametrize("spec", ["a.rst", "b.rst"])
-def test_driven_by_a_file(spec, record_property, record_xml_attribute):
+def test_driven_by_a_file(spec, record_property):
     apply_test_metadata(
         record_property=record_property,
         metadata={"fully_verifies": ["REQ_9"], "test_type": "interface-test"},
-        record_xml_attribute=record_xml_attribute,
-        file=f"specs/{spec}",
+        file=f"../_main/specs/{spec}",
         line=7,
     )
     assert spec.endswith(".rst")
 """
+
+RUNTIME_COMPAT = """
+from sphinxcontrib.test_reports.pytest_plugin import apply_test_metadata
+
+def test_score_style(record_property, record_xml_attribute):
+    apply_test_metadata(
+        record_property=record_property,
+        metadata={"fully_verifies": ["REQ_9"]},
+        record_xml_attribute=record_xml_attribute,
+        file="specs/a.rst",
+        line=7,
+    )
+"""
+
+SKIPPED = """
+import pytest
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+
+@pytest.fixture(scope="module")
+def broken():
+    raise RuntimeError("no database")
+
+
+@pytest.mark.skip(reason="not today")
+@add_test_properties(partially_verifies=["REQ_1"])
+def test_skipped():
+    assert False
+
+
+@pytest.mark.xfail(run=False, reason="never run")
+def test_not_run():
+    assert False
+
+
+@add_test_properties(fully_verifies=["REQ_2"])
+def test_setup_error(broken):
+    assert True
+
+
+def test_runs():
+    assert True
+"""
+
+NESTED = """
+import pytest
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+
+@add_test_properties(partially_verifies=["REQ_1"])
+def test_before():
+    assert True
+
+
+def test_inner_session(tmp_path):
+    # A project testing its own pytest setup runs an inner session in process.
+    inner = tmp_path / "test_inner.py"
+    inner.write_text("def test_inner():\\n    assert True\\n")
+    (tmp_path / "pytest.ini").write_text("[pytest]\\n")
+    assert pytest.main(["-q", "-p", "no:cacheprovider", "-p", "PLUGIN", str(inner)]) == 0
+
+
+@add_test_properties(partially_verifies=["REQ_2"])
+def test_after():
+    assert True
+""".replace("PLUGIN", PLUGIN)
 
 PLAIN = """
 def test_plain():
@@ -121,6 +186,12 @@ def _line_of(source, needle):
 # pytest points a decorated function at its first decorator line.
 ADDITION_LINE = _line_of(DECORATED, "@add_test_properties(")
 PLAIN_LINE = _line_of(DECORATED, "def test_plain")
+SKIPPED_LINES = {
+    "test_skipped": _line_of(SKIPPED, "@pytest.mark.skip"),
+    "test_not_run": _line_of(SKIPPED, "@pytest.mark.xfail"),
+    "test_setup_error": _line_of(SKIPPED, "@add_test_properties(fully_verifies"),
+    "test_runs": _line_of(SKIPPED, "def test_runs"),
+}
 
 
 def _run(pytester, source, *extra, family="xunit1", profile=SCORE_PROFILE, ini=""):
@@ -189,6 +260,30 @@ class TestXmlShape:
         assert case.get("file") == "specs/a.rst"
         assert case.get("line") == "7"
 
+    def test_record_xml_attribute_is_still_accepted(self, pytester):
+        # score_pytest call sites pass it; it is not needed any more.
+        result, root = _run(pytester, RUNTIME_COMPAT)
+        result.assert_outcomes(passed=1, warnings=1)  # pytest's experimental notice
+        case = _cases(root)["test_score_style"]
+        assert (case.get("file"), case.get("line")) == ("specs/a.rst", "7")
+
+    def test_cases_skipped_or_erroring_at_setup_carry_the_same_shape(self, pytester):
+        # A function-scoped fixture never runs for these; the report has to be
+        # shaped by hooks, or one report mixes 1-based and 0-based lines and,
+        # under Bazel, cut and uncut paths -- which moves a deterministic ID.
+        result, root = _run(pytester, SKIPPED)
+        result.assert_outcomes(passed=1, skipped=1, xfailed=1, errors=1)
+        cases = _cases(root)
+        for name, line in SKIPPED_LINES.items():
+            assert cases[name].get("line") == str(line), name
+        assert _properties(cases["test_skipped"]) == {"PartiallyVerifies": "REQ_1"}
+        assert _properties(cases["test_setup_error"]) == {"FullyVerifies": "REQ_2"}
+
+    def test_an_inner_pytest_session_leaves_the_model_intact(self, pytester):
+        result, root = _run(pytester, NESTED)
+        result.assert_outcomes(passed=3)
+        assert _properties(_cases(root)["test_after"]) == {"PartiallyVerifies": "REQ_2"}
+
     def test_the_marker_is_registered(self, pytester):
         result, _ = _run(pytester, DECORATED, "--strict-markers")
         result.assert_outcomes(passed=2)
@@ -242,6 +337,11 @@ class TestPropertyModel:
     def test_a_keyword_given_twice_is_an_error(self):
         with pytest.raises(ValueError, match="twice"):
             parse_properties(["a = A", "a = B"])
+
+    def test_two_keywords_for_one_xml_name_is_an_error(self):
+        # _normalise would keep only the later value, silently.
+        with pytest.raises(ValueError, match="'B'"):
+            parse_properties(["a = B", "c = B"])
 
     def test_a_custom_profile_drives_the_xml(self, pytester):
         profile = "test_reports_properties =\n    satisfies = Satisfies, list\n    reviewers, list\n"
@@ -315,6 +415,35 @@ class TestPropertyValues:
     def test_numbers_are_written_as_text(self, score_model):
         assert properties_mapping(Priority=3) == {"Priority": "3"}
 
+    def test_bytes_are_an_error(self, score_model):
+        # bytes is a Sequence of ints: b"REQ_1" would join to "82, 69, 81, 95, 49".
+        with pytest.raises(TypeError, match="bytes"):
+            properties_mapping(fully_verifies=b"REQ_1")
+
+    def test_every_item_of_a_list_must_be_a_string(self, score_model):
+        # A list of lists is one indentation away in a spec file; it used to be
+        # written as its repr and split into bogus IDs on the build side.
+        with pytest.raises(TypeError, match="partially_verifies.*item.*list"):
+            properties_mapping(partially_verifies=[["REQ_1", "REQ_2"]])
+        with pytest.raises(TypeError, match="item.*int"):
+            properties_mapping(partially_verifies=[1, 2])
+
+    def test_an_empty_nested_list_is_not_written_as_brackets(self, score_model):
+        with pytest.raises(TypeError, match="item"):
+            properties_mapping(partially_verifies=[[]], fully_verifies=["R"])
+
+    # The decorator builds the marker here, outside a session that registers it.
+    @pytest.mark.filterwarnings("ignore::pytest.PytestUnknownMarkWarning")
+    def test_the_import_gate_and_the_writer_agree_on_emptiness(self, score_model):
+        # Only None, "" and sequences of those count as empty. Anything else
+        # passes the decorator and is then judged by the writer.
+        with pytest.raises(ValueError, match="no test properties"):
+            pytest_plugin.add_test_properties(partially_verifies=[""], test_type=None)
+        decorator = pytest_plugin.add_test_properties(partially_verifies=[[]])
+        assert callable(decorator)
+        with pytest.raises(TypeError):
+            properties_mapping(partially_verifies=[[]])
+
     def test_an_unordered_collection_is_an_error(self, score_model):
         # str(set) would be written otherwise, and a set has no stable order.
         with pytest.raises(TypeError, match="partially_verifies"):
@@ -346,16 +475,16 @@ class TestRuntimeMetadata:
         )
         assert recorded == []
 
-    def test_the_location_is_applied_without_metadata(self, score_model):
-        attributes = {}
-        apply_test_metadata(
-            record_property=lambda name, value: None,
-            metadata={},
-            record_xml_attribute=attributes.__setitem__,
-            file="../_main/specs/a.rst",
-            line=7,
+    def test_the_location_is_applied_without_metadata(self, pytester):
+        source = RUNTIME.replace(
+            'metadata={"fully_verifies": ["REQ_9"], "test_type": "interface-test"}',
+            "metadata={}",
         )
-        assert attributes == {"file": "specs/a.rst", "line": "7"}
+        result, root = _run(pytester, source)
+        result.assert_outcomes(passed=2)
+        case = _cases(root)["test_driven_by_a_file[a.rst]"]
+        assert _properties(case) == {}
+        assert (case.get("file"), case.get("line")) == ("specs/a.rst", "7")
 
 
 class TestMarkerMerge:
@@ -445,18 +574,24 @@ class TestStartUp:
         result = pytester.runpytest_subprocess("-p", PLUGIN, "-p", "no:junitxml")
         result.assert_outcomes(passed=2)
 
-    def test_xdist_is_warned_about(self, pytester):
-        # record_xml_attribute is a no-op on xdist workers: pytest builds the
-        # XML writer on the controller only, so the locations are lost silently.
+    def test_xdist_gets_the_full_shape(self, pytester):
+        # pytest builds the XML writer on the controller only, so nothing a
+        # worker records as an attribute survives; the location is written on
+        # the controller from the report instead, and the model reaches the
+        # workers for the properties.
         pytest.importorskip("xdist")
         result, root = _run(pytester, DECORATED, "-n", "1")
-        result.assert_outcomes(passed=2, warnings=1)
-        result.stdout.fnmatch_lines(["*TestReportsConfigWarning*pytest-xdist*"])
-        # The model reaches the workers: the properties are written there.
-        assert (
-            _properties(_cases(root)["test_addition"])["PartiallyVerifies"]
-            == "REQ_1, REQ_2"
-        )
+        result.assert_outcomes(passed=2, warnings=0)
+        case = _cases(root)["test_addition"]
+        assert case.get("line") == str(ADDITION_LINE)
+        assert _properties(case)["PartiallyVerifies"] == "REQ_1, REQ_2"
+
+    def test_xdist_gets_the_runtime_location_override(self, pytester):
+        pytest.importorskip("xdist")
+        result, root = _run(pytester, RUNTIME, "-n", "1")
+        result.assert_outcomes(passed=2)
+        case = _cases(root)["test_driven_by_a_file[a.rst]"]
+        assert (case.get("file"), case.get("line")) == ("specs/a.rst", "7")
 
 
 class TestSourcePath:
@@ -495,7 +630,8 @@ class TestHelpers:
             "import sys;"
             f"import {PLUGIN};"
             "leaked = sorted(m for m in sys.modules"
-            " if m == 'sphinx' or m.startswith(('sphinx.', 'sphinx_needs')));"
+            " if m in ('sphinx', 'docutils')"
+            " or m.startswith(('sphinx.', 'sphinx_needs', 'docutils.')));"
             "print(','.join(leaked))"
         )
         result = subprocess.run(

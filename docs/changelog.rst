@@ -41,10 +41,12 @@ Unreleased
   Sphinx build with the extension loaded. The declarations and the fields the
   extension registers come from one table, so the two cannot drift apart.
 * Feature: A pytest plugin (``-p sphinxcontrib.test_reports.pytest_plugin``)
-  writes the ``file``/``line`` attributes that give a test case its source
-  location, and requirement-link ``<properties>`` from an
-  ``add_test_properties`` decorator or an ``apply_test_metadata`` runtime
-  helper. Which properties exist, their XML names and which take lists is the
+  gives every test case the source location an editor shows -- pytest's
+  ``file``/``line`` counted from 1, Bazel's runfiles prefix cut, a runtime
+  override for file-driven tests -- and requirement-link ``<properties>`` from
+  an ``add_test_properties`` decorator or an ``apply_test_metadata`` runtime
+  helper, for cases skipped at setup and under pytest-xdist too. Which
+  properties exist, their XML names and which take lists is the
   ``test_reports_properties`` pytest ini option; S-CORE's model, which the
   plugin was ported from, is the documented example. See :ref:`pytest_plugin`.
 * Bugfix: ``tr_file_option``, ``tr_source_file_option`` and
