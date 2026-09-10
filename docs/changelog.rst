@@ -7,6 +7,19 @@ Unreleased
 ----------
 :Released: under development
 
+* Breaking: ``pip install sphinx-test-reports`` no longer installs Sphinx and
+  Sphinx-Needs. They are the new ``sphinx`` extra, so the install line of a
+  documentation project becomes ``pip install "sphinx-test-reports[sphinx]"``.
+  The bare package brings only ``lxml``, the dependency of the ``test-reports``
+  command, which runs in test runners and build actions that have no
+  documentation toolchain. An extra is opt-in, so the extension now checks the
+  installed toolchain against the versions the extra declares when Sphinx
+  loads it: a missing or older Sphinx or Sphinx-Needs stops the build with a
+  message naming the install line, instead of a traceback from inside a
+  directive.
+* Testing: A CI job installs the bare package and runs the converter's tests
+  without Sphinx, so a toolchain import creeping into the command's import
+  chain -- or Sphinx creeping back into the dependency list -- fails the build.
 * Feature: Support the googletest XML dialect: ``status="notrun"`` is reported
   as ``disabled`` instead of ``passed``, all ``<failure>``/``<skipped>`` parts
   of a test case are kept instead of only the first, ``RecordProperty`` values
@@ -61,7 +74,8 @@ Unreleased
   file -- a wrong type, a rename onto a fixed field, a disagreeing need type
   -- as its crash report rather than as a one-line message; the message is in
   the report. A typo in ``[test_reports.build.needs]`` is reported the same
-  way.
+  way, and so is a missing or outdated toolchain refused when the extension
+  loads.
 * Support: Python 3.10 is no longer supported. It reached the end of upstream
   support, and dropping it lets the package read TOML with ``tomllib`` from the
   standard library instead of carrying a backport.

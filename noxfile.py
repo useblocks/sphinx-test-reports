@@ -34,6 +34,44 @@ def plugin_floor(session, pytest_version):
     session.run("pytest", "tests/test_pytest_plugin.py")
 
 
+# The converter and its configuration run without the documentation toolchain,
+# and these are their tests. Everything else builds documentation.
+TOOLCHAIN_FREE_TESTS = [
+    "tests/test_cli_config.py",
+    "tests/test_cli_convert.py",
+    "tests/test_identity.py",
+    "tests/test_junit_parser.py",
+    "tests/test_junit_parser_gtest.py",
+    "tests/test_needs_export.py",
+    "tests/test_project_config.py",
+    "tests/test_toolchain.py",
+]
+
+# Exits non-zero, naming them, if any module of the toolchain is importable.
+TOOLCHAIN_IS_ABSENT = (
+    "import importlib.util, sys;"
+    "present = [m for m in ('sphinx', 'sphinx_needs', 'docutils')"
+    " if importlib.util.find_spec(m)];"
+    "sys.exit(f'toolchain installed: {present}' if present else 0)"
+)
+
+
+@session(python=PYTHON_VERSIONS)
+def toolchain_free(session):
+    """Run the converter's tests in an environment without Sphinx.
+
+    The package is installed with the dependencies it declares -- `lxml` --
+    plus pytest, so a toolchain import creeping into the converter's import
+    chain, or Sphinx creeping back into the dependency list, fails here. The
+    tests that need a documentation build carry the `toolchain` mark.
+    """
+    session.install(".", "pytest")
+    session.run("python", "-c", TOOLCHAIN_IS_ABSENT)
+    session.run(
+        "pytest", "-m", "not toolchain", *TOOLCHAIN_FREE_TESTS, *session.posargs
+    )
+
+
 @session(python="3.12")
 def linkcheck(session):
     session.install(".[docs]")
