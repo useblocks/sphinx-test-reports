@@ -1,7 +1,8 @@
 """The pytest plugin produces the XML shape this extension reads.
 
 Run through ``pytester``: a small test file is executed with the plugin enabled
-and the resulting JUnit XML inspected.
+and the resulting JUnit XML inspected. The property model comes from the
+``test_reports_properties`` ini option; S-CORE's is the profile most tests use.
 """
 
 import subprocess
@@ -12,13 +13,23 @@ import pytest
 
 from sphinxcontrib.test_reports import pytest_plugin
 from sphinxcontrib.test_reports.pytest_plugin import (
+    Property,
     apply_test_metadata,
     clean_source_path,
+    parse_properties,
     properties_mapping,
-    register_property,
 )
 
 PLUGIN = "sphinxcontrib.test_reports.pytest_plugin"
+
+#: S-CORE's model, as the docs show it: the profile most of these tests run with.
+SCORE_PROFILE = """\
+test_reports_properties =
+    partially_verifies = PartiallyVerifies, list
+    fully_verifies = FullyVerifies, list
+    test_type = TestType
+    derivation_technique = DerivationTechnique
+"""
 
 DECORATED = """
 from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
@@ -53,6 +64,49 @@ def test_driven_by_a_file(spec, record_property, record_xml_attribute):
     assert spec.endswith(".rst")
 """
 
+PLAIN = """
+def test_plain():
+    assert True
+"""
+
+MARKED_STRICT = """
+import pytest
+
+
+@pytest.mark.filterwarnings("error")
+def test_strict():
+    assert True
+"""
+
+STACKED = """
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+
+@add_test_properties(test_type="requirements-based", Owner="team-a")
+class TestThing:
+    @add_test_properties(partially_verifies=["REQ_1"])
+    def test_one(self):
+        assert True
+
+    @add_test_properties(partially_verifies=["REQ_2"], Owner="team-b")
+    def test_two(self):
+        assert True
+
+
+@add_test_properties(fully_verifies=["REQ_3"])
+@add_test_properties(test_type="interface-test")
+def test_stacked():
+    assert True
+"""
+
+CUSTOM = """
+from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
+
+@add_test_properties(satisfies=["REQ_1", "REQ_2"], reviewers=["ann", "bob"], Owner="x")
+def test_custom():
+    assert True
+"""
+
 
 def _line_of(source, needle):
     """1-based line of *needle* in the file pytester writes (it strips the
@@ -69,13 +123,16 @@ ADDITION_LINE = _line_of(DECORATED, "@add_test_properties(")
 PLAIN_LINE = _line_of(DECORATED, "def test_plain")
 
 
-def _run(pytester, source, *extra, family="xunit1"):
+def _run(pytester, source, *extra, family="xunit1", profile=SCORE_PROFILE, ini=""):
     """Run *source* with the plugin in a fresh pytest process and parse the XML.
 
-    A subprocess, not in-process: this module has the plugin imported already,
-    and pytest warns about a ``-p`` module it cannot assert-rewrite any more --
-    noise in the warning counts, an error under a strict warning policy.
+    *profile* is the ``test_reports_properties`` block of the ini file, *ini*
+    any further ini lines. A subprocess, not in-process: this module has the
+    plugin imported already, and pytest warns about a ``-p`` module it cannot
+    assert-rewrite any more -- noise in the warning counts, an error under a
+    strict warning policy.
     """
+    pytester.makeini("[pytest]\n" + profile + ini)
     pytester.makepyfile(source)
     report = pytester.path / "report.xml"
     result = pytester.runpytest_subprocess(
@@ -90,6 +147,13 @@ def _cases(root):
 
 def _properties(case):
     return {p.get("name"): p.get("value") for p in case.iter("property")}
+
+
+@pytest.fixture
+def score_model(monkeypatch):
+    """The S-CORE profile installed as the plugin's model, for direct calls."""
+    lines = [line.strip() for line in SCORE_PROFILE.splitlines()[1:]]
+    monkeypatch.setattr(pytest_plugin, "PROPERTIES", parse_properties(lines))
 
 
 class TestXmlShape:
@@ -146,6 +210,255 @@ class TestXmlShape:
         assert _cases(root)["test_plain"].get("file") is None
 
 
+class TestPropertyModel:
+    """The model is pytest configuration; the plugin ships no names of its own."""
+
+    def test_a_line_declares_keyword_name_and_arity(self):
+        assert parse_properties(
+            ["partially_verifies = PartiallyVerifies, list", "test_type = TestType"]
+        ) == {
+            "partially_verifies": Property("PartiallyVerifies", multi=True),
+            "test_type": Property("TestType"),
+        }
+
+    def test_the_name_defaults_to_the_keyword(self):
+        assert parse_properties(["reviewers, list", "Owner"]) == {
+            "reviewers": Property("reviewers", multi=True),
+            "Owner": Property("Owner"),
+        }
+
+    def test_blank_lines_are_skipped(self):
+        assert parse_properties(["", "  ", "Owner"]) == {"Owner": Property("Owner")}
+
+    @pytest.mark.parametrize(
+        "line",
+        ["a = b = c", "a, list, extra", "= Name", "a, set"],
+        ids=["two-equals", "two-flags", "no-keyword", "unknown-flag"],
+    )
+    def test_a_line_outside_the_grammar_is_an_error(self, line):
+        with pytest.raises(ValueError, match="test_reports_properties"):
+            parse_properties([line])
+
+    def test_a_keyword_given_twice_is_an_error(self):
+        with pytest.raises(ValueError, match="twice"):
+            parse_properties(["a = A", "a = B"])
+
+    def test_a_custom_profile_drives_the_xml(self, pytester):
+        profile = "test_reports_properties =\n    satisfies = Satisfies, list\n    reviewers, list\n"
+        result, root = _run(pytester, CUSTOM, profile=profile)
+        result.assert_outcomes(passed=1)
+        assert _properties(_cases(root)["test_custom"]) == {
+            "Satisfies": "REQ_1, REQ_2",
+            "reviewers": "ann, bob",
+            "Owner": "x",
+        }
+
+    def test_the_profile_may_come_from_pyproject(self, pytester):
+        pytester.makepyprojecttoml(
+            "[tool.pytest.ini_options]\n"
+            "test_reports_properties = [\n"
+            '    "partially_verifies = PartiallyVerifies, list",\n'
+            '    "test_type = TestType",\n'
+            "]\n"
+        )
+        pytester.makepyfile(DECORATED)
+        report = pytester.path / "report.xml"
+        result = pytester.runpytest_subprocess(
+            "-p", PLUGIN, "--junitxml", str(report), "-o", "junit_family=xunit1"
+        )
+        result.assert_outcomes(passed=2)
+        written = _properties(_cases(ET.parse(report).getroot())["test_addition"])
+        assert written["PartiallyVerifies"] == "REQ_1, REQ_2"
+        # Not configured: written under its own name, as a single value.
+        assert written["derivation_technique"] == "requirements-analysis"
+
+    def test_without_a_profile_a_list_is_an_error_naming_the_option(self, pytester):
+        # Silently writing "['REQ_1', 'REQ_2']" is the bug this replaces.
+        result, root = _run(pytester, DECORATED, profile="")
+        result.assert_outcomes(passed=1, errors=1)
+        result.stdout.fnmatch_lines(
+            ["*TypeError*'partially_verifies'*test_reports_properties*"]
+        )
+        assert _properties(_cases(root)["test_plain"]) == {}
+
+    def test_a_bad_line_is_a_usage_error_at_start_up(self, pytester):
+        result, _ = _run(pytester, PLAIN, profile="test_reports_properties = a, set\n")
+        assert result.ret == pytest.ExitCode.USAGE_ERROR
+        result.stderr.fnmatch_lines(["ERROR: test_reports_properties*'set'*"])
+
+
+class TestPropertyValues:
+    """How a keyword's value reaches the XML: declared per property, not guessed."""
+
+    def test_a_bare_string_is_one_requirement_id(self, score_model):
+        # str is a Sequence[str]; it must not be exploded character by character.
+        assert properties_mapping(partially_verifies="REQ_1") == {
+            "PartiallyVerifies": "REQ_1"
+        }
+
+    def test_a_list_for_a_single_valued_property_is_an_error(self, score_model):
+        with pytest.raises(TypeError, match="test_type.*single value"):
+            properties_mapping(test_type=["a", "b"])
+
+    def test_an_unconfigured_keyword_takes_a_single_value(self, score_model):
+        assert properties_mapping(Owner="team-a") == {"Owner": "team-a"}
+
+    def test_a_list_under_an_unconfigured_keyword_is_an_error(self, score_model):
+        with pytest.raises(TypeError, match="Satisfies.*test_reports_properties"):
+            properties_mapping(Satisfies=["REQ_1", "REQ_2"])
+
+    def test_the_xml_name_of_a_configured_property_works_as_keyword(self, score_model):
+        assert properties_mapping(PartiallyVerifies=["REQ_1", "REQ_2"]) == {
+            "PartiallyVerifies": "REQ_1, REQ_2"
+        }
+
+    def test_numbers_are_written_as_text(self, score_model):
+        assert properties_mapping(Priority=3) == {"Priority": "3"}
+
+    def test_an_unordered_collection_is_an_error(self, score_model):
+        # str(set) would be written otherwise, and a set has no stable order.
+        with pytest.raises(TypeError, match="partially_verifies"):
+            properties_mapping(partially_verifies={"REQ_1", "REQ_2"})
+
+    def test_empty_values_are_dropped(self, score_model):
+        assert properties_mapping(fully_verifies=["R"], test_type="") == {
+            "FullyVerifies": "R"
+        }
+
+    def test_nothing_to_record_is_an_error(self, score_model):
+        with pytest.raises(ValueError, match="no test properties"):
+            properties_mapping(partially_verifies=[])
+
+    def test_the_decorator_rejects_an_empty_call_without_a_model(self, monkeypatch):
+        # Import time, before any configuration is read: emptiness needs none.
+        monkeypatch.setattr(pytest_plugin, "PROPERTIES", {})
+        with pytest.raises(ValueError, match="no test properties"):
+            pytest_plugin.add_test_properties(partially_verifies=[], test_type="")
+
+
+class TestRuntimeMetadata:
+    def test_all_empty_metadata_records_nothing(self, score_model):
+        # A spec file with an empty metadata block must not fail the test.
+        recorded = []
+        apply_test_metadata(
+            record_property=lambda name, value: recorded.append((name, value)),
+            metadata={"fully_verifies": [], "test_type": ""},
+        )
+        assert recorded == []
+
+    def test_the_location_is_applied_without_metadata(self, score_model):
+        attributes = {}
+        apply_test_metadata(
+            record_property=lambda name, value: None,
+            metadata={},
+            record_xml_attribute=attributes.__setitem__,
+            file="../_main/specs/a.rst",
+            line=7,
+        )
+        assert attributes == {"file": "specs/a.rst", "line": "7"}
+
+
+class TestMarkerMerge:
+    def test_class_and_method_markers_are_merged(self, pytester):
+        # A classification on the class and links on each method is the natural
+        # way to use the decorator; get_closest_marker kept only the innermost.
+        result, root = _run(pytester, STACKED)
+        result.assert_outcomes(passed=3)
+        cases = _cases(root)
+        assert _properties(cases["test_one"]) == {
+            "PartiallyVerifies": "REQ_1",
+            "TestType": "requirements-based",
+            "Owner": "team-a",
+        }
+
+    def test_the_innermost_marker_wins_per_key(self, pytester):
+        _, root = _run(pytester, STACKED)
+        assert _properties(_cases(root)["test_two"])["Owner"] == "team-b"
+
+    def test_stacked_decorators_on_a_function_are_merged(self, pytester):
+        _, root = _run(pytester, STACKED)
+        assert _properties(_cases(root)["test_stacked"]) == {
+            "FullyVerifies": "REQ_3",
+            "TestType": "interface-test",
+        }
+
+
+class TestStartUp:
+    """The plugin's own notices, and pytest's about its fixtures, never take the
+    run down -- whatever the project's warning policy."""
+
+    def test_filterwarnings_error_in_the_ini_keeps_the_run_alive(self, pytester):
+        result, root = _run(pytester, DECORATED, ini="filterwarnings = error\n")
+        result.assert_outcomes(passed=2)
+        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_w_error_on_the_command_line_keeps_the_run_alive(self, pytester):
+        # An appended ini filter cannot silence the record_xml_attribute notice
+        # here: command-line filters take precedence over every ini line.
+        result, root = _run(pytester, DECORATED, "-W", "error")
+        result.assert_outcomes(passed=2)
+        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_a_strict_filterwarnings_mark_keeps_the_test_alive(self, pytester):
+        result, root = _run(pytester, MARKED_STRICT)
+        result.assert_outcomes(passed=1)
+        assert _cases(root)["test_strict"].get("file") is not None
+
+    def test_xunit2_under_filterwarnings_error_is_a_clean_usage_error(self, pytester):
+        # The project asked for warnings to be errors; the plugin's advice is
+        # one, delivered as a usage error rather than an INTERNALERROR trace.
+        result, _ = _run(
+            pytester, PLAIN, family="xunit2", ini="filterwarnings = error\n"
+        )
+        assert result.ret == pytest.ExitCode.USAGE_ERROR
+        result.stderr.fnmatch_lines(["ERROR: *junit_family is 'xunit2'*xunit1*"])
+        assert "INTERNALERROR" not in result.stdout.str()
+
+    def test_the_notice_can_be_silenced_by_its_class(self, pytester):
+        result, _ = _run(
+            pytester,
+            PLAIN,
+            family="xunit2",
+            ini=f"filterwarnings =\n    error\n    ignore::{PLUGIN}.TestReportsConfigWarning\n",
+        )
+        result.assert_outcomes(passed=1, warnings=0)
+
+    def test_xunit2_gives_no_per_test_fixture_warnings(self, pytester):
+        # pytest drops the attributes under xunit2 anyway and would warn per test
+        # that record_xml_attribute is incompatible; the plugin says it once.
+        result, _ = _run(pytester, PLAIN, family="xunit2")
+        result.assert_outcomes(passed=1, warnings=1)
+        assert not [
+            line for line in result.stdout.lines if "is incompatible with" in line
+        ]
+
+    def test_legacy_is_an_alias_of_xunit1(self, pytester):
+        result, root = _run(pytester, DECORATED, family="legacy")
+        result.assert_outcomes(passed=2, warnings=0)
+        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
+
+    def test_the_junitxml_plugin_may_be_disabled(self, pytester):
+        # config.option.xmlpath exists only while pytest's junitxml plugin is
+        # registered, and so do the record_* fixtures.
+        pytester.makeini("[pytest]\n" + SCORE_PROFILE)
+        pytester.makepyfile(DECORATED)
+        result = pytester.runpytest_subprocess("-p", PLUGIN, "-p", "no:junitxml")
+        result.assert_outcomes(passed=2)
+
+    def test_xdist_is_warned_about(self, pytester):
+        # record_xml_attribute is a no-op on xdist workers: pytest builds the
+        # XML writer on the controller only, so the locations are lost silently.
+        pytest.importorskip("xdist")
+        result, root = _run(pytester, DECORATED, "-n", "1")
+        result.assert_outcomes(passed=2, warnings=1)
+        result.stdout.fnmatch_lines(["*TestReportsConfigWarning*pytest-xdist*"])
+        # The model reaches the workers: the properties are written there.
+        assert (
+            _properties(_cases(root)["test_addition"])["PartiallyVerifies"]
+            == "REQ_1, REQ_2"
+        )
+
+
 class TestSourcePath:
     def test_the_runfiles_prefix_is_cut_at_a_path_component(self):
         assert clean_source_path("../_main/pkg/test_x.py") == "pkg/test_x.py"
@@ -177,15 +490,6 @@ class TestSourcePath:
 
 
 class TestHelpers:
-    def test_empty_values_are_dropped(self):
-        assert properties_mapping(fully_verifies=["R"], test_type="") == {
-            "FullyVerifies": "R"
-        }
-
-    def test_nothing_to_record_is_an_error(self):
-        with pytest.raises(ValueError, match="no test properties"):
-            properties_mapping(partially_verifies=[])
-
     def test_the_plugin_does_not_import_sphinx(self):
         script = (
             "import sys;"
@@ -198,200 +502,3 @@ class TestHelpers:
             [sys.executable, "-c", script], capture_output=True, text=True, check=True
         )
         assert result.stdout.strip() == ""
-
-
-class TestPropertyValues:
-    """How a keyword's value reaches the XML: declared per property, not guessed."""
-
-    def test_a_bare_string_is_one_requirement_id(self):
-        # str is a Sequence[str]; it must not be exploded character by character.
-        assert properties_mapping(partially_verifies="REQ_1") == {
-            "PartiallyVerifies": "REQ_1"
-        }
-
-    def test_a_list_for_a_single_valued_property_is_an_error(self):
-        with pytest.raises(TypeError, match="test_type.*single value"):
-            properties_mapping(test_type=["a", "b"])
-
-    def test_a_custom_keyword_takes_a_single_value(self):
-        assert properties_mapping(Owner="team-a") == {"Owner": "team-a"}
-
-    def test_a_list_under_an_unregistered_keyword_is_an_error(self):
-        # Previously written as the Python repr "['REQ_1', 'REQ_2']".
-        with pytest.raises(TypeError, match="Satisfies.*register_property"):
-            properties_mapping(Satisfies=["REQ_1", "REQ_2"])
-
-    def test_a_registered_keyword_joins_its_list(self, monkeypatch):
-        monkeypatch.setattr(pytest_plugin, "PROPERTIES", dict(pytest_plugin.PROPERTIES))
-        register_property("satisfies", "Satisfies", multi=True)
-        assert properties_mapping(satisfies=["REQ_1", "REQ_2"]) == {
-            "Satisfies": "REQ_1, REQ_2"
-        }
-        assert properties_mapping(satisfies="REQ_1") == {"Satisfies": "REQ_1"}
-
-    def test_the_xml_name_of_a_registered_property_works_as_keyword(self):
-        assert properties_mapping(PartiallyVerifies=["REQ_1", "REQ_2"]) == {
-            "PartiallyVerifies": "REQ_1, REQ_2"
-        }
-
-    def test_numbers_are_written_as_text(self):
-        assert properties_mapping(Priority=3) == {"Priority": "3"}
-
-    def test_an_unordered_collection_is_an_error(self):
-        # str(set) would be written otherwise, and a set has no stable order.
-        with pytest.raises(TypeError, match="partially_verifies"):
-            properties_mapping(partially_verifies={"REQ_1", "REQ_2"})
-
-
-class TestRuntimeMetadata:
-    def test_all_empty_metadata_records_nothing(self):
-        # A spec file with an empty metadata block must not fail the test.
-        recorded = []
-        apply_test_metadata(
-            record_property=lambda name, value: recorded.append((name, value)),
-            metadata={"fully_verifies": [], "test_type": ""},
-        )
-        assert recorded == []
-
-    def test_the_location_is_applied_without_metadata(self):
-        attributes = {}
-        apply_test_metadata(
-            record_property=lambda name, value: None,
-            metadata={},
-            record_xml_attribute=attributes.__setitem__,
-            file="../_main/specs/a.rst",
-            line=7,
-        )
-        assert attributes == {"file": "specs/a.rst", "line": "7"}
-
-
-STACKED = """
-from sphinxcontrib.test_reports.pytest_plugin import add_test_properties
-
-
-@add_test_properties(test_type="requirements-based", Owner="team-a")
-class TestThing:
-    @add_test_properties(partially_verifies=["REQ_1"])
-    def test_one(self):
-        assert True
-
-    @add_test_properties(partially_verifies=["REQ_2"], Owner="team-b")
-    def test_two(self):
-        assert True
-
-
-@add_test_properties(fully_verifies=["REQ_3"])
-@add_test_properties(test_type="interface-test")
-def test_stacked():
-    assert True
-"""
-
-
-class TestMarkerMerge:
-    def test_class_and_method_markers_are_merged(self, pytester):
-        # A classification on the class and links on each method is the natural
-        # way to use the decorator; get_closest_marker kept only the innermost.
-        result, root = _run(pytester, STACKED)
-        result.assert_outcomes(passed=3)
-        cases = _cases(root)
-        assert _properties(cases["test_one"]) == {
-            "PartiallyVerifies": "REQ_1",
-            "TestType": "requirements-based",
-            "Owner": "team-a",
-        }
-
-    def test_the_innermost_marker_wins_per_key(self, pytester):
-        _, root = _run(pytester, STACKED)
-        assert _properties(_cases(root)["test_two"])["Owner"] == "team-b"
-
-    def test_stacked_decorators_on_a_function_are_merged(self, pytester):
-        _, root = _run(pytester, STACKED)
-        assert _properties(_cases(root)["test_stacked"]) == {
-            "FullyVerifies": "REQ_3",
-            "TestType": "interface-test",
-        }
-
-
-PLAIN = """
-def test_plain():
-    assert True
-"""
-
-MARKED_STRICT = """
-import pytest
-
-
-@pytest.mark.filterwarnings("error")
-def test_strict():
-    assert True
-"""
-
-
-class TestStartUp:
-    """The plugin's own notices, and pytest's about its fixtures, never take the
-    run down -- whatever the project's warning policy."""
-
-    def test_filterwarnings_error_in_the_ini_keeps_the_run_alive(self, pytester):
-        pytester.makeini("[pytest]\nfilterwarnings = error\n")
-        result, root = _run(pytester, DECORATED)
-        result.assert_outcomes(passed=2)
-        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
-
-    def test_w_error_on_the_command_line_keeps_the_run_alive(self, pytester):
-        # An appended ini filter cannot silence the record_xml_attribute notice
-        # here: command-line filters take precedence over every ini line.
-        result, root = _run(pytester, DECORATED, "-W", "error")
-        result.assert_outcomes(passed=2)
-        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
-
-    def test_a_strict_filterwarnings_mark_keeps_the_test_alive(self, pytester):
-        result, root = _run(pytester, MARKED_STRICT)
-        result.assert_outcomes(passed=1)
-        assert _cases(root)["test_strict"].get("file") is not None
-
-    def test_xunit2_under_filterwarnings_error_is_a_clean_usage_error(self, pytester):
-        # The project asked for warnings to be errors; the plugin's advice is
-        # one, delivered as a usage error rather than an INTERNALERROR trace.
-        pytester.makeini("[pytest]\nfilterwarnings = error\n")
-        result, _ = _run(pytester, PLAIN, family="xunit2")
-        assert result.ret == pytest.ExitCode.USAGE_ERROR
-        result.stderr.fnmatch_lines(["ERROR: *junit_family is 'xunit2'*xunit1*"])
-        assert "INTERNALERROR" not in result.stdout.str()
-
-    def test_the_notice_can_be_silenced_by_its_class(self, pytester):
-        pytester.makeini(
-            "[pytest]\nfilterwarnings =\n    error\n"
-            f"    ignore::{PLUGIN}.TestReportsConfigWarning\n"
-        )
-        result, _ = _run(pytester, PLAIN, family="xunit2")
-        result.assert_outcomes(passed=1, warnings=0)
-
-    def test_xunit2_gives_no_per_test_fixture_warnings(self, pytester):
-        # pytest drops the attributes under xunit2 anyway and would warn per test
-        # that record_xml_attribute is incompatible; the plugin says it once.
-        result, _ = _run(pytester, PLAIN, family="xunit2")
-        result.assert_outcomes(passed=1, warnings=1)
-        assert not [
-            line for line in result.stdout.lines if "is incompatible with" in line
-        ]
-
-    def test_legacy_is_an_alias_of_xunit1(self, pytester):
-        result, root = _run(pytester, DECORATED, family="legacy")
-        result.assert_outcomes(passed=2, warnings=0)
-        assert _cases(root)["test_plain"].get("line") == str(PLAIN_LINE)
-
-    def test_the_junitxml_plugin_may_be_disabled(self, pytester):
-        # config.option.xmlpath exists only while pytest's junitxml plugin is
-        # registered, and so do the record_* fixtures.
-        pytester.makepyfile(DECORATED)
-        result = pytester.runpytest_subprocess("-p", PLUGIN, "-p", "no:junitxml")
-        result.assert_outcomes(passed=2)
-
-    def test_xdist_is_warned_about(self, pytester):
-        # record_xml_attribute is a no-op on xdist workers: pytest builds the
-        # XML writer on the controller only, so the locations are lost silently.
-        pytest.importorskip("xdist")
-        result, root = _run(pytester, DECORATED, "-n", "1")
-        result.assert_outcomes(passed=2, warnings=1)
-        result.stdout.fnmatch_lines(["*TestReportsConfigWarning*pytest-xdist*"])
-        assert root is not None

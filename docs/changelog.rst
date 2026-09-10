@@ -44,8 +44,9 @@ Unreleased
   writes the ``file``/``line`` attributes that give a test case its source
   location, and requirement-link ``<properties>`` from an
   ``add_test_properties`` decorator or an ``apply_test_metadata`` runtime
-  helper, ported from S-CORE's docs-as-code; ``register_property`` adds the
-  link fields of other metamodels. See :ref:`pytest_plugin`.
+  helper. Which properties exist, their XML names and which take lists is the
+  ``test_reports_properties`` pytest ini option; S-CORE's model, which the
+  plugin was ported from, is the documented example. See :ref:`pytest_plugin`.
 * Bugfix: ``tr_file_option``, ``tr_source_file_option`` and
   ``tr_source_line_option`` may no longer name a fixed field such as ``case``
   or ``result``, in ``conf.py`` or in the declarative file. The build

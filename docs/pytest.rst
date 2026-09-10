@@ -11,6 +11,10 @@ the deterministic ID of ``tr_deterministic_case_ids``), and nothing records the
 requirements a test verifies. ``Sphinx-Test-Reports`` ships a small pytest
 plugin that writes both.
 
+The plugin is generic: which properties exist, what they are called in the XML
+and whether they take a list is pytest configuration, not code. S-CORE's model
+is the worked example below.
+
 Enabling it
 -----------
 
@@ -43,8 +47,90 @@ clean usage error instead;
 silences them. pytest's own notice that ``record_xml_attribute`` is experimental
 is dropped by the plugin, whatever the warning policy.
 
+Declaring the properties
+------------------------
+
+The ``test_reports_properties`` ini option declares the properties a test may
+carry, one per line:
+
+.. code-block:: text
+
+   keyword [= XmlName] [, list]
+
+*keyword*
+   what a test author writes -- the argument of ``add_test_properties`` or the
+   key in the metadata of ``apply_test_metadata``.
+*XmlName*
+   the ``<property name="...">`` written to the report. Leave it out when it
+   equals the keyword.
+``list``
+   marks a multi-valued property: a list is written joined with ``", "`` -- the
+   shape ``tr_property_link_types`` splits again -- and a bare string counts as
+   one value. Without it the property takes exactly one value, and a list is a
+   ``TypeError`` rather than a silent join.
+
+A keyword that is not declared is written under its own name with a single
+value. A list under it is a ``TypeError`` whose message names the option, so a
+project cannot lose requirement IDs to a Python ``repr`` silently. A line
+outside the grammar stops the run at start-up with a usage error that quotes
+it.
+
+**Example: S-CORE.** The model of S-CORE's docs-as-code, whose ``score_pytest``
+plugin this one was ported from:
+
+.. code-block:: ini
+
+   # pytest.ini
+   [pytest]
+   addopts = -p sphinxcontrib.test_reports.pytest_plugin
+   junit_family = xunit1
+   test_reports_properties =
+       partially_verifies = PartiallyVerifies, list
+       fully_verifies = FullyVerifies, list
+       test_type = TestType
+       derivation_technique = DerivationTechnique
+
+.. code-block:: toml
+
+   # pyproject.toml
+   [tool.pytest.ini_options]
+   addopts = "-p sphinxcontrib.test_reports.pytest_plugin"
+   junit_family = "xunit1"
+   test_reports_properties = [
+       "partially_verifies = PartiallyVerifies, list",
+       "fully_verifies = FullyVerifies, list",
+       "test_type = TestType",
+       "derivation_technique = DerivationTechnique",
+   ]
+
+With it, tests written against ``score_pytest`` keep working when they import
+``add_test_properties`` and ``apply_test_metadata`` from here. The values of
+``test_type`` and ``derivation_technique`` are the identifiers of S-CORE's
+verification methods and derivation techniques, from its
+`verification concept <https://eclipse-score.github.io/process_description/main/process_areas/verification/verification_concept.html#verification-concept-types-methods>`_:
+
+.. list-table::
+   :header-rows: 1
+
+   * - ``TestType``
+     - ``DerivationTechnique``
+   * - ``control-flow-analysis``, ``data-flow-analysis``, ``fault-injection``,
+       ``inspection``, ``interface-test``, ``requirements-based``,
+       ``resource-usage``, ``static-code-analysis``,
+       ``structural-statement-coverage``, ``structural-branch-coverage``,
+       ``walkthrough``
+     - ``requirements-analysis``, ``design-analysis``, ``boundary-values``,
+       ``equivalence-classes``, ``fuzz-testing``, ``error-guessing``,
+       ``explorative-testing``
+
+They are documented here, not enforced by the plugin: S-CORE's own metamodel
+accepts any string for both fields, and a project with a different metamodel
+writes its own values.
+
 Linking a test to requirements
 ------------------------------
+
+With the S-CORE model declared:
 
 .. code-block:: python
 
@@ -69,32 +155,16 @@ writes, on that test's ``<testcase>``:
      <property name="DerivationTechnique" value="requirements-analysis"/>
    </properties>
 
-``fully_verifies`` writes ``FullyVerifies`` the same way. How a value is written
-is declared per property, not guessed from the value:
+The declared XML name doubles as keyword, so ``PartiallyVerifies=[...]`` is
+accepted too. Empty values are not written, and a decorator that would write
+nothing is an error at import time. The values are written when the test is
+set up, against the declared model; a wrong shape -- a list where one value is
+expected -- fails that test with the ``TypeError`` above.
 
-* ``partially_verifies`` and ``fully_verifies`` are multi-valued: a list is
-  joined with ``", "`` -- the shape ``tr_property_link_types`` splits again --
-  and a bare string is one ID (``partially_verifies="REQ_1"`` writes ``REQ_1``,
-  not five one-letter IDs).
-* ``test_type`` and ``derivation_technique`` are single-valued; a list is a
-  ``TypeError``, not a silent join.
-* Any further keyword argument is written under its own name with a single
-  value (``Owner="team-a"`` writes ``Owner``). A list under a keyword the plugin
-  does not know is a ``TypeError``: register the keyword first, see below.
-
-Empty values are not written, and a decorator that would write nothing is an
-error. The decorator also goes on a class, and decorators stack: a
-classification on the class and the requirement links on each method are merged
-into the method's ``<properties>``, the decorator closest to the function
-winning where two set the same property.
-
-The property names are the ones S-CORE's metamodel spells, and the values of
-``test_type`` and ``derivation_technique`` are the identifiers of its
-verification methods and derivation techniques (``TEST_TYPES`` and
-``DERIVATION_TECHNIQUES`` in the plugin module list them, following the
-`verification concept <https://eclipse-score.github.io/process_description/main/process_areas/verification/verification_concept.html#verification-concept-types-methods>`_).
-They are documented, not enforced: a project with a different metamodel writes
-its own values.
+The decorator also goes on a class, and decorators stack: a classification on
+the class and the requirement links on each method are merged into the method's
+``<properties>``, the decorator closest to the function winning where two set
+the same property.
 
 On the build side the properties arrive through the directives' property
 handling: ``tr_property_link_types`` turns a comma-separated property into a
@@ -114,25 +184,6 @@ link field, and the link field has to exist as a sphinx-needs link type --
 ``needs_extra_options`` entry in turn. A link field missing from
 ``needs_extra_links`` fails the build on the first test case that carries the
 property. The same names work for any other consumer of the report.
-
-Properties of your own metamodel
---------------------------------
-
-The four keywords above are S-CORE's. A project with other link fields registers
-them once, before the tests are collected -- ``conftest.py`` is the place:
-
-.. code-block:: python
-
-   # conftest.py
-   from sphinxcontrib.test_reports.pytest_plugin import register_property
-
-   register_property("satisfies", "Satisfies", multi=True)
-
-``@add_test_properties(satisfies=["REQ_1", "REQ_2"])`` then writes
-``<property name="Satisfies" value="REQ_1, REQ_2"/>``, ready for
-``tr_property_link_types = {"Satisfies": "satisfies"}`` on the build side.
-Without ``multi=True`` the property takes a single value, like ``test_type``.
-The XML name doubles as keyword, so ``PartiallyVerifies=[...]`` is accepted too.
 
 Metadata known only at run time
 -------------------------------
@@ -167,10 +218,10 @@ Origin
 ------
 
 The plugin is a port of the ``score_pytest`` attribute plugin of S-CORE's
-`docs-as-code <https://github.com/eclipse-score/docs-as-code>`_, producing the
-same XML, so tests written against that plugin keep working when they import
-``add_test_properties`` and ``apply_test_metadata`` from here. Two of its rules
-are not ported, because they are that project's process rules rather than
-properties of the data: the ``test_type`` and ``derivation_technique``
-vocabularies are documented (``TEST_TYPES``, ``DERIVATION_TECHNIQUES``) but not
-enforced, and a decorated test is not required to carry a docstring.
+`docs-as-code <https://github.com/eclipse-score/docs-as-code>`_. What that
+plugin hard-codes -- the four properties and their spelling -- is the
+``test_reports_properties`` example above here, so the XML comes out the same
+and other metamodels declare their own. Two of its rules are not ported,
+because they are that project's process rules rather than properties of the
+data: the ``test_type`` and ``derivation_technique`` vocabularies are documented
+but not enforced, and a decorated test is not required to carry a docstring.
