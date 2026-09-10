@@ -372,6 +372,28 @@ class TestPropertyModel:
         # Not configured: written under its own name, as a single value.
         assert written["derivation_technique"] == "requirements-analysis"
 
+    def test_a_decorator_may_run_before_configuration_is_read(self, pytester):
+        # A conftest.py that imports a helper module runs during pytest's
+        # pre-parse, before pytest_configure installs the model. The decorator
+        # keeps the keywords as given, so that shape neither crashes collection
+        # nor loses the properties, which are written at setup.
+        pytester.makepyfile(
+            helpers=(
+                "from sphinxcontrib.test_reports.pytest_plugin import add_test_properties\n"
+                "\n"
+                '@add_test_properties(partially_verifies=["REQ_1"], test_type="interface-test")\n'
+                "def test_from_helper():\n"
+                "    assert True\n"
+            )
+        )
+        pytester.makeconftest("import helpers  # decorates at pre-parse time\n")
+        result, root = _run(pytester, "from helpers import test_from_helper\n")
+        result.assert_outcomes(passed=1)
+        assert _properties(_cases(root)["test_from_helper"]) == {
+            "PartiallyVerifies": "REQ_1",
+            "TestType": "interface-test",
+        }
+
     def test_without_a_profile_a_list_is_an_error_naming_the_option(self, pytester):
         # Silently writing "['REQ_1', 'REQ_2']" is the bug this replaces.
         result, root = _run(pytester, DECORATED, profile="")
